@@ -12,7 +12,7 @@ print("啟動量化引擎：開始下載資料與計算市場寬度...")
 # ==========================================
 print("📥 步驟 1: 正在下載大盤加權指數 (^TWII)...")
 taiex_data = yf.download("^TWII", period="2y", progress=False)
-taiex_close = taiex_data['Close'].ffill() # 替大盤也加上防呆填補
+taiex_close = taiex_data['Close'].ffill() 
 taiex_pct = taiex_close.pct_change() * 100
 
 # ==========================================
@@ -46,7 +46,7 @@ if isinstance(stock_data.columns, pd.MultiIndex):
 else:
     close_prices = pd.DataFrame(stock_data['Close'])
 
-# 🌟 關鍵神級修復：向前填補 (Forward Fill)，防止均線斷裂！
+# 🌟 向前填補 (Forward Fill)，防止因為單日資料遺失導致均線斷裂
 close_prices = close_prices.ffill()
 
 # ==========================================
@@ -112,27 +112,36 @@ fig.add_trace(
     row=2, col=1, secondary_y=False
 )
 
-# ----------------- 版面與軸線設定 -----------------
+# ----------------- 版面與軸線設定 (終極修復版) -----------------
+
+# 1. 解決左上角字體重疊：將標題強制「置中」
 fig.update_layout(
-    title=f"台股加權指數 vs 市場寬度 (市值前 {len(tickers)} 大) 附漲跌幅動能",
+    title=dict(
+        text=f"台股加權指數 vs 市場寬度 (市值前 {len(tickers)} 大) 附漲跌幅動能",
+        x=0.5,             # 👈 標題置中
+        xanchor='center'   # 👈 絕對不會跟左邊的按鈕打架
+    ),
     hovermode="x unified",
     plot_bgcolor='white',
-    # 👉 排版修復：將上方 margin (t) 調高至 90，避免標題擁擠
-    margin=dict(l=50, r=50, t=90, b=40),
+    margin=dict(l=50, r=50, t=80, b=40),
 )
 
-# 開啟並設定貫穿主副圖的 X 軸十字線 (Spikelines) 與時間按鈕
+# 2. 解決十字線無法貫穿的問題：全域套用垂直游標線
 fig.update_xaxes(
     rangebreaks=[dict(bounds=["sat", "mon"])],
     showspikes=True,       
-    spikemode="across",    # 貫穿上下副圖
+    spikemode="across",    # 👈 貫穿上下副圖
     spikesnap="cursor",    
-    spikedash="dash",      
+    spikedash="solid",     # 改為實線讓它更明顯
     spikethickness=1,      
-    spikecolor="gray",
+    spikecolor="gray"
+)
+
+# 3. 獨立設定左上角時間按鈕的位置
+fig.update_xaxes(
     rangeselector=dict(
-        y=1.08,  # 👉 排版修復：將按鈕往上抬，脫離標題
-        x=0,     # 👉 排版修復：確保按鈕靠左對齊
+        y=1.05, 
+        x=0,
         buttons=list([
             dict(count=1, label="1M", step="month", stepmode="backward"),
             dict(count=3, label="3M", step="month", stepmode="backward"),
@@ -144,6 +153,17 @@ fig.update_xaxes(
     row=1, col=1
 )
 
+# 4. 全域套用水平游標線
+fig.update_yaxes(
+    showspikes=True, 
+    spikemode="across", 
+    spikesnap="cursor", 
+    spikedash="dot", 
+    spikethickness=1, 
+    spikecolor="gray"
+)
+
+# 獨立設定 Y 軸名稱與格線
 fig.update_yaxes(title_text="加權指數", row=1, col=1, secondary_y=False, showgrid=True, gridcolor='lightgray', zeroline=False)
 fig.update_yaxes(title_text="市場寬度 (%)", range=[0, 100], row=1, col=1, secondary_y=True, showgrid=False, zeroline=False)
 fig.update_yaxes(title_text="漲跌幅 (%)", row=2, col=1, showgrid=True, gridcolor='lightgray', zeroline=True, zerolinecolor='black')

@@ -22,7 +22,7 @@ taiex_bb_upper = taiex_20ma + (2 * taiex_20std)
 taiex_bb_lower = taiex_20ma - (2 * taiex_20std)
 
 # ==========================================
-# 2. 自動讀取 650 檔股票名單 (tickers.csv)
+# 2. 自動讀取 640 檔股票名單 (tickers.csv)
 # ==========================================
 csv_file = 'tickers.csv'
 if os.path.exists(csv_file):

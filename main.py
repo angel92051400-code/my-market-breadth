@@ -8,18 +8,12 @@ import numpy as np
 print("啟動量化引擎：開始下載資料與計算市場寬度...")
 
 # ==========================================
-# 1. 取得台股加權指數與計算布林通道
+# 1. 取得台股加權指數歷史資料
 # ==========================================
-print("📥 步驟 1: 正在下載大盤加權指數 (^TWII) 並計算布林通道...")
+print("📥 步驟 1: 正在下載大盤加權指數 (^TWII)...")
 taiex_data = yf.download("^TWII", period="2y", progress=False)
 taiex_close = taiex_data['Close'].ffill() 
 taiex_pct = taiex_close.pct_change() * 100
-
-# 計算大盤布林通道 (20MA, 加減 2 倍標準差)
-taiex_20ma = taiex_close.rolling(window=20).mean()
-taiex_20std = taiex_close.rolling(window=20).std()
-taiex_bb_upper = taiex_20ma + (2 * taiex_20std)
-taiex_bb_lower = taiex_20ma - (2 * taiex_20std)
 
 # ==========================================
 # 2. 自動讀取 650 檔股票名單 (tickers.csv)
@@ -52,11 +46,10 @@ if isinstance(stock_data.columns, pd.MultiIndex):
 else:
     close_prices = pd.DataFrame(stock_data['Close'])
 
-# 向前填補 (Forward Fill)，防止因為單日資料遺失導致均線斷裂
 close_prices = close_prices.ffill()
 
 # ==========================================
-# 4. 核心量化邏輯與修復
+# 4. 核心量化邏輯 (包含寬度本身的布林通道)
 # ==========================================
 print("🧮 步驟 4: 進行均線與市場寬度極速運算...")
 ma20 = close_prices.rolling(window=20).mean()
@@ -68,19 +61,25 @@ breadth_series = above_both.mean(axis=1) * 100
 # 將一開始完全算不出季線的「助跑期」設為空值
 breadth_series[ma60.isna().all(axis=1)] = pd.NA
 
+# 👇 關鍵新增：計算「市場寬度」本身的布林通道 (20MA, 加減 2 倍標準差)
+breadth_20ma = breadth_series.rolling(window=20).mean()
+breadth_20std = breadth_series.rolling(window=20).std()
+breadth_bb_upper = breadth_20ma + (2 * breadth_20std)
+breadth_bb_lower = breadth_20ma - (2 * breadth_20std)
+
 # ==========================================
 # 5. 資料合併與清理
 # ==========================================
 print("🧹 步驟 5: 對齊時間軸與整理漲跌色彩...")
 df = pd.DataFrame({
     'taiex': taiex_close.squeeze(),
-    'taiex_bb_upper': taiex_bb_upper.squeeze(),
-    'taiex_bb_lower': taiex_bb_lower.squeeze(),
     'taiex_pct': taiex_pct.squeeze(),
-    'breadth': breadth_series.squeeze()
+    'breadth': breadth_series.squeeze(),
+    'breadth_bb_upper': breadth_bb_upper.squeeze(),
+    'breadth_bb_lower': breadth_bb_lower.squeeze()
 })
 
-# 剔除所有的空值日 (包含前 60 天的助跑期)
+# 剔除所有的空值日
 df = df.dropna()
 df = df.reset_index()
 date_col = df.columns[0]
@@ -102,37 +101,38 @@ fig = make_subplots(
 )
 
 # ----------------- 上層 (Row 1) -----------------
-# Trace 0: 加權指數
+# Trace 0: 加權指數 (對齊左 Y 軸)
 fig.add_trace(
     go.Scatter(x=df[date_col], y=df['taiex'], name="加權指數", mode='lines', line=dict(color='blue', width=2)),
     row=1, col=1, secondary_y=False
 )
 
-# Trace 1: 布林上軌 (預設隱藏)
+# Trace 1: 寬度布林上軌 (對齊右 Y 軸，預設隱藏，顏色為淡橘色)
 fig.add_trace(
-    go.Scatter(x=df[date_col], y=df['taiex_bb_upper'], name="布林上軌", mode='lines', 
-               line=dict(color='rgba(128, 128, 128, 0.5)', width=1, dash='dash'), 
-               visible=False),
-    row=1, col=1, secondary_y=False
+    go.Scatter(x=df[date_col], y=df['breadth_bb_upper'], name="寬度布林上軌", mode='lines', 
+               line=dict(color='rgba(255, 165, 0, 0.3)', width=1, dash='dash'), 
+               hoverinfo='skip', visible=False),
+    row=1, col=1, secondary_y=True
 )
 
-# Trace 2: 布林下軌，並帶有半透明填滿效果 (預設隱藏)
+# Trace 2: 寬度布林下軌 & 透明區間填滿 (對齊右 Y 軸，預設隱藏，淡淡的橘色填滿)
 fig.add_trace(
-    go.Scatter(x=df[date_col], y=df['taiex_bb_lower'], name="布林下軌", mode='lines', 
-               fill='tonexty', fillcolor='rgba(128, 128, 128, 0.1)', 
-               line=dict(color='rgba(128, 128, 128, 0.5)', width=1, dash='dash'), 
-               visible=False),
-    row=1, col=1, secondary_y=False
+    go.Scatter(x=df[date_col], y=df['breadth_bb_lower'], name="寬度布林下軌", mode='lines', 
+               fill='tonexty', fillcolor='rgba(255, 165, 0, 0.1)', 
+               line=dict(color='rgba(255, 165, 0, 0.3)', width=1, dash='dash'), 
+               hoverinfo='skip', visible=False),
+    row=1, col=1, secondary_y=True
 )
 
-# Trace 3: 市場寬度
+# Trace 3: 市場寬度 (對齊右 Y 軸)
 fig.add_trace(
     go.Scatter(x=df[date_col], y=df['breadth'], name="市場寬度 (%)", mode='lines', line=dict(color='orange', width=2)),
     row=1, col=1, secondary_y=True
 )
 
+# 紅綠警戒線 (對齊右 Y 軸)
 for y_val, color in zip([20, 30, 50, 60], ['green', 'green', 'red', 'red']):
-    fig.add_hline(y=y_val, line_dash="dash", line_color=color, row=1, col=1, secondary_y=True, opacity=0.5)
+    fig.add_hline(y=y_val, line_dash="dash", line_color=color, row=1, col=1, secondary_y=True, opacity=0.4)
 
 # ----------------- 下層 (Row 2) -----------------
 # Trace 4: 大盤漲跌幅
@@ -152,7 +152,7 @@ fig.update_layout(
     plot_bgcolor='white',
     margin=dict(l=50, r=50, t=80, b=40),
     
-    # 布林通道切換按鈕
+    # 布林通道切換按鈕 (右上角)
     updatemenus=[
         dict(
             type="buttons",
@@ -164,13 +164,15 @@ fig.update_layout(
             showactive=True,
             buttons=list([
                 dict(
-                    label="隱藏布林通道",
+                    label="隱藏寬度布林",
                     method="restyle",
+                    # Trace 順序：0(加權), 1(寬度上軌), 2(寬度下軌), 3(寬度), 4(漲跌幅) -> 關閉 1 與 2
                     args=[{"visible": [True, False, False, True, True]}]
                 ),
                 dict(
-                    label="顯示布林通道",
+                    label="顯示寬度布林",
                     method="restyle",
+                    # 全部開啟
                     args=[{"visible": [True, True, True, True, True]}]
                 )
             ])
@@ -178,18 +180,18 @@ fig.update_layout(
     ]
 )
 
-# 👇👇👇 關鍵修復：將十字線設定「獨立」出來，套用到所有 X 軸 (不加 row/col)
+# 全域 X 軸與貫穿垂直十字線設定
 fig.update_xaxes(
     rangebreaks=[dict(bounds=["sat", "mon"])],
     showspikes=True,       
-    spikemode="across",    # 貫穿全域副圖
+    spikemode="across",    
     spikesnap="cursor",    
     spikedash="solid",     
     spikethickness=1,      
     spikecolor="gray"
 )
 
-# 👇👇👇 時間縮放按鈕單獨設定，只綁定在第一張主圖上
+# 時間縮放按鈕單獨設定 (綁定 Row 1)
 fig.update_xaxes(
     rangeselector=dict(
         y=1.05, 
@@ -205,10 +207,9 @@ fig.update_xaxes(
     row=1, col=1
 )
 
-# Y 軸全域套用水平游標線
+# 全域 Y 軸水平十字線設定
 fig.update_yaxes(
     showspikes=True, 
-    spikemode="across", 
     spikesnap="cursor", 
     spikedash="dot", 
     spikethickness=1, 

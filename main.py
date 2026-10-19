@@ -8,12 +8,11 @@ import numpy as np
 print("啟動量化引擎：開始下載資料與計算市場寬度...")
 
 # ==========================================
-# 1. 取得台股加權指數歷史資料 (改為 2 年，解決均線助跑期問題)
+# 1. 取得台股加權指數歷史資料
 # ==========================================
 print("📥 步驟 1: 正在下載大盤加權指數 (^TWII)...")
 taiex_data = yf.download("^TWII", period="2y", progress=False)
-taiex_close = taiex_data['Close']
-# 計算大盤每日漲跌幅 (%)
+taiex_close = taiex_data['Close'].ffill() # 替大盤也加上防呆填補
 taiex_pct = taiex_close.pct_change() * 100
 
 # ==========================================
@@ -37,7 +36,7 @@ tickers = [t.strip() for t in tickers if t.strip()]
 print(f"🎯 準備抓取 {len(tickers)} 檔股票資料！")
 
 # ==========================================
-# 3. 批次下載成分股歷史報價 (同步改為 2 年)
+# 3. 批次下載成分股歷史報價
 # ==========================================
 print("📥 步驟 3: 正在從 Yahoo Finance 批次下載個股資料...")
 stock_data = yf.download(tickers, period="2y", threads=True, progress=False)
@@ -46,6 +45,9 @@ if isinstance(stock_data.columns, pd.MultiIndex):
     close_prices = stock_data['Close']
 else:
     close_prices = pd.DataFrame(stock_data['Close'])
+
+# 🌟 關鍵神級修復：向前填補 (Forward Fill)，防止均線斷裂！
+close_prices = close_prices.ffill()
 
 # ==========================================
 # 4. 核心量化邏輯與修復
@@ -57,7 +59,7 @@ ma60 = close_prices.rolling(window=60).mean()
 above_both = (close_prices > ma20) & (close_prices > ma60)
 breadth_series = above_both.mean(axis=1) * 100
 
-# ⚠️ 關鍵修復：把前 60 天因為算不出季線而變成 0% 的「助跑期」強制轉為空值 (NaN)
+# 將一開始完全算不出季線的「助跑期」設為空值
 breadth_series[ma60.isna().all(axis=1)] = pd.NA
 
 # ==========================================
@@ -75,7 +77,7 @@ df = df.dropna()
 df = df.reset_index()
 date_col = df.columns[0]
 
-# 根據台灣股市習慣，設定柱狀圖顏色 (漲=紅色，跌=綠色)
+# 設定柱狀圖顏色 (漲=紅色，跌=綠色)
 df['bar_color'] = np.where(df['taiex_pct'] >= 0, 'red', 'green')
 
 # ==========================================
@@ -83,7 +85,6 @@ df['bar_color'] = np.where(df['taiex_pct'] >= 0, 'red', 'green')
 # ==========================================
 print("📊 步驟 6: 正在生成子圖疊加 HTML 互動圖表...")
 
-# 建立上下兩層的版面 (75% 主圖，25% 副圖)，共用 X 軸
 fig = make_subplots(
     rows=2, cols=1, 
     shared_xaxes=True, 
@@ -93,23 +94,19 @@ fig = make_subplots(
 )
 
 # ----------------- 上層 (Row 1) -----------------
-# 藍線：加權指數
 fig.add_trace(
     go.Scatter(x=df[date_col], y=df['taiex'], name="加權指數", mode='lines', line=dict(color='blue', width=2)),
     row=1, col=1, secondary_y=False
 )
-# 橘線：市場寬度
 fig.add_trace(
     go.Scatter(x=df[date_col], y=df['breadth'], name="市場寬度 (%)", mode='lines', line=dict(color='orange', width=2)),
     row=1, col=1, secondary_y=True
 )
 
-# 繪製紅綠警戒線 (僅在上層副 Y 軸)
 for y_val, color in zip([20, 30, 50, 60], ['green', 'green', 'red', 'red']):
     fig.add_hline(y=y_val, line_dash="dash", line_color=color, row=1, col=1, secondary_y=True, opacity=0.5)
 
 # ----------------- 下層 (Row 2) -----------------
-# 柱狀圖：大盤每日漲跌幅
 fig.add_trace(
     go.Bar(x=df[date_col], y=df['taiex_pct'], name="大盤漲跌幅 (%)", marker_color=df['bar_color']),
     row=2, col=1, secondary_y=False
@@ -120,13 +117,22 @@ fig.update_layout(
     title=f"台股加權指數 vs 市場寬度 (市值前 {len(tickers)} 大) 附漲跌幅動能",
     hovermode="x unified",
     plot_bgcolor='white',
-    margin=dict(l=50, r=50, t=60, b=40),
+    # 👉 排版修復：將上方 margin (t) 調高至 90，避免標題擁擠
+    margin=dict(l=50, r=50, t=90, b=40),
 )
 
-# 套用至所有 X 軸：隱藏週末並加入時間縮放按鈕
-fig.update_xaxes(rangebreaks=[dict(bounds=["sat", "mon"])])
+# 開啟並設定貫穿主副圖的 X 軸十字線 (Spikelines) 與時間按鈕
 fig.update_xaxes(
+    rangebreaks=[dict(bounds=["sat", "mon"])],
+    showspikes=True,       
+    spikemode="across",    # 貫穿上下副圖
+    spikesnap="cursor",    
+    spikedash="dash",      
+    spikethickness=1,      
+    spikecolor="gray",
     rangeselector=dict(
+        y=1.08,  # 👉 排版修復：將按鈕往上抬，脫離標題
+        x=0,     # 👉 排版修復：確保按鈕靠左對齊
         buttons=list([
             dict(count=1, label="1M", step="month", stepmode="backward"),
             dict(count=3, label="3M", step="month", stepmode="backward"),
@@ -138,11 +144,9 @@ fig.update_xaxes(
     row=1, col=1
 )
 
-# 設定 Y 軸外觀
 fig.update_yaxes(title_text="加權指數", row=1, col=1, secondary_y=False, showgrid=True, gridcolor='lightgray', zeroline=False)
 fig.update_yaxes(title_text="市場寬度 (%)", range=[0, 100], row=1, col=1, secondary_y=True, showgrid=False, zeroline=False)
 fig.update_yaxes(title_text="漲跌幅 (%)", row=2, col=1, showgrid=True, gridcolor='lightgray', zeroline=True, zerolinecolor='black')
 
-# 輸出瘦身版的 HTML
 fig.write_html("index.html", auto_open=False, include_plotlyjs='cdn')
 print("✅ 任務圓滿完成！圖表已儲存為 index.html")

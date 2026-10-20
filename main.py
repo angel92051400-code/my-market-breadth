@@ -22,7 +22,7 @@ taiex_bb_upper = taiex_20ma + (2 * taiex_20std)
 taiex_bb_lower = taiex_20ma - (2 * taiex_20std)
 
 # ==========================================
-# 2. 自動讀取 640 檔股票名單 (tickers.csv)
+# 2. 自動讀取 650 檔股票名單 (tickers.csv)
 # ==========================================
 csv_file = 'tickers.csv'
 if os.path.exists(csv_file):
@@ -88,6 +88,9 @@ df = pd.DataFrame({
 df = df.dropna()
 df = df.reset_index()
 date_col = df.columns[0]
+
+# 👇 關鍵修復 1：將日期強制轉為無時區格式 (tz-naive)，防止 Plotly 時間按鈕運算當機
+df[date_col] = pd.to_datetime(df[date_col], utc=True).dt.tz_localize(None)
 
 df['bar_color'] = np.where(df['taiex_pct'] >= 0, 'red', 'green')
 
@@ -165,9 +168,8 @@ fig.update_layout(
     plot_bgcolor='white',
     margin=dict(l=50, r=50, t=80, b=40),
     
-    # 👇 關鍵新增：兩個並排的獨立下拉選單，互不干擾
+    # 兩個並排的獨立下拉選單
     updatemenus=[
-        # 選單 1：控制大盤布林 (綁定 Trace Index 1 還有 2)
         dict(
             direction="down",
             x=0.85, xanchor="right", y=1.1, yanchor="bottom",
@@ -177,7 +179,6 @@ fig.update_layout(
                 dict(label="大盤布林：顯示", method="restyle", args=[{"visible": [True, True]}, [1, 2]])
             ])
         ),
-        # 選單 2：控制寬度布林 (綁定 Trace Index 3 還有 4)
         dict(
             direction="down",
             x=1.0, xanchor="right", y=1.1, yanchor="bottom",
@@ -192,6 +193,7 @@ fig.update_layout(
 
 # 全域 X 軸與貫穿垂直十字線設定
 fig.update_xaxes(
+    type="date",           # 👇 關鍵修復 2：強制指定 X 軸為單純的日期軸
     rangebreaks=[dict(bounds=["sat", "mon"])],
     showspikes=True,       
     spikemode="across",    

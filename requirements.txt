@@ -1,0 +1,7 @@
+pandas
+numpy
+plotly
+yfinance
+requests
+lxml
+html5lib

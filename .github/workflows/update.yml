@@ -1,36 +1,57 @@
+
 name: Daily Market Breadth Update
 
 on:
   schedule:
-    # 每天下午 3:00 執行 (台股收盤後)。注意：這裡是 UTC 時間，台灣時間 15:00 減去 8 小時為 07:00
-    - cron: '0 7 * * 1-5' # 1-5 代表週一到週五
-  workflow_dispatch: # 允許你隨時手動點擊按鈕測試執行
+    # 台灣時間週一至週五 15:00
+    - cron: '0 7 * * 1-5'
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-breadth-update
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
 
       - name: Install dependencies
         run: |
-          pip install pandas plotly yfinance # 這裡補上你實際用到的套件
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Run Python script
+      - name: Update Top 640 Stock List
+        run: python update_tickers.py
+
+      - name: Generate Market Breadth Dashboard
         run: python main.py
 
       - name: Commit and Push changes
-        # 將更新後的資料和新產生的 index.html 推回 GitHub
         run: |
-          git config --local user.name "github-actions[bot]"
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git add index.html
-          # 如果你有儲存歷史紀錄的 csv 檔，也要加進來 e.g., git add history_data.csv
-          git commit -m "Auto-update market breadth dashboard" || echo "No changes to commit"
-          git push
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add tickers.csv index.html
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Auto-update stock list and market breadth"
+            git push
+          fi

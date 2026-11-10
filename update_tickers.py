@@ -6,12 +6,14 @@ import math
 import traceback
 from io import StringIO
 from pathlib import Path
+from collections import Counter
 
 import pandas as pd
 import requests
 import yfinance as yf
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
 
 # =========================================================
 # 0. 基本設定
@@ -21,8 +23,16 @@ BASE_DIR = Path(__file__).resolve().parent
 OUTPUT = BASE_DIR / "tickers.csv"
 
 TOP_N = 640
-MIN_COVERAGE = 0.90   # 至少取得 90% 股票的有效市值
-REQUEST_DELAY = 0.10
+MIN_COVERAGE = 0.90
+
+# 每檔查詢之間的延遲
+REQUEST_DELAY = 0.20
+
+# 連續失敗達到此數量就提前停止
+MAX_CONSECUTIVE_FAILURES = 15
+
+# Log 最多顯示幾筆個別錯誤
+MAX_PRINT_ERRORS = 30
 
 SUMMARY_FILE = os.environ.get("GITHUB_STEP_SUMMARY")
 
@@ -35,7 +45,6 @@ class UpdateError(Exception):
 
 
 def write_summary(lines):
-    """將結果寫進 GitHub Actions Summary。"""
     if not SUMMARY_FILE:
         return
 
@@ -44,24 +53,27 @@ def write_summary(lines):
 
 
 def safe_text(value):
-    """避免錯誤文字破壞 Markdown 表格。"""
-    return str(value).replace("|", "/").replace("\n", " ")[:500]
+    return (
+        str(value)
+        .replace("|", "/")
+        .replace("\n", " ")
+        [:500]
+    )
 
 
 # =========================================================
-# 1. 從證交所取得上市、上櫃普通股
+# 1. 取得上市、上櫃普通股清單
 # =========================================================
 
 def fetch_taiwan_stock_symbols():
-    print("階段 1：取得上市及上櫃普通股清單", flush=True)
+    print("階段 1：取得上市及上櫃普通股", flush=True)
 
     session = requests.Session()
 
     retry = Retry(
         total=3,
         backoff_factor=2,
-        status_forcelist=[429, 500, 502, 503, 504],
-        allowed_methods=["GET"]
+        status_forcelist=[429, 500, 502, 503, 504]
     )
 
     session.mount(
@@ -80,7 +92,10 @@ def fetch_taiwan_stock_symbols():
             f"C_public.jsp?strMode={mode}"
         )
 
-        print(f"正在取得{market_name}清單...", flush=True)
+        print(
+            f"正在取得{market_name}清單...",
+            flush=True
+        )
 
         try:
             response = session.get(url, timeout=40)
@@ -92,30 +107,31 @@ def fetch_taiwan_stock_symbols():
         except requests.RequestException as e:
             raise UpdateError(
                 "官方清單下載",
-                f"{market_name}網站請求失敗：{str(e)[:300]}",
-                "確認證交所網站是否正常，稍後重試。"
+                f"{market_name}下載失敗：{e}",
+                "確認官方網站是否可以正常連線。"
             ) from e
 
-        # 核心修正：
-        # 使用 StringIO，避免 pandas 把 HTML 誤認成檔案
+        # 使用 StringIO，修正先前 HTML 解析錯誤
         try:
             tables = pd.read_html(
                 StringIO(response.text),
                 header=None
             )
+
         except Exception as e:
             raise UpdateError(
                 "官方 HTML 解析",
-                f"{market_name} HTML 解析失敗：{str(e)[:300]}",
-                "檢查官方網站表格是否改版，以及 pandas/lxml 版本。"
+                f"{market_name} HTML 解析失敗：{e}",
+                "檢查證交所表格格式是否改變。"
             ) from e
 
         selected = None
 
-        # 自動尋找具有 CFICode 的表格與標題列
         for table in tables:
             df = table.copy()
-            df.columns = [str(c).strip() for c in df.columns]
+            df.columns = [
+                str(c).strip() for c in df.columns
+            ]
 
             if "CFICode" in df.columns:
                 selected = df
@@ -129,8 +145,7 @@ def fetch_taiwan_stock_symbols():
 
                 if "CFICode" in values:
                     df.columns = values
-                    df = df.iloc[row_idx + 1:].copy()
-                    selected = df
+                    selected = df.iloc[row_idx + 1:].copy()
                     break
 
             if selected is not None:
@@ -140,7 +155,7 @@ def fetch_taiwan_stock_symbols():
             raise UpdateError(
                 "官方表格欄位辨識",
                 f"{market_name}找不到 CFICode 欄位",
-                "證交所表格格式可能改變，需檢查欄位名稱。"
+                "官方表格可能改版，請檢查欄位。"
             )
 
         df = selected.copy()
@@ -155,12 +170,12 @@ def fetch_taiwan_stock_symbols():
 
         if name_col is None:
             raise UpdateError(
-                "股票代號辨識",
+                "股票代號欄位",
                 f"{market_name}找不到股票代號欄位",
-                "檢查官方表格第一欄的名稱。"
+                "檢查官方表格欄位名稱。"
             )
 
-        # CFICode = ESVUFR：普通股
+        # 只保留普通股
         df = df[
             df["CFICode"]
             .astype(str)
@@ -168,7 +183,6 @@ def fetch_taiwan_stock_symbols():
             .eq("ESVUFR")
         ].copy()
 
-        # 只接受四位數股票代號
         codes = (
             df[name_col]
             .astype(str)
@@ -183,9 +197,9 @@ def fetch_taiwan_stock_symbols():
 
         if not symbols:
             raise UpdateError(
-                "普通股清單檢查",
-                f"{market_name}沒有取得有效普通股",
-                "檢查 CFICode 與股票代號格式。"
+                "普通股名單",
+                f"{market_name}沒有有效普通股",
+                "檢查 CFICode 和股票代號格式。"
             )
 
         print(
@@ -198,62 +212,135 @@ def fetch_taiwan_stock_symbols():
     twse = get_symbols("2", ".TW", "上市")
     tpex = get_symbols("4", ".TWO", "上櫃")
 
-    all_symbols = list(dict.fromkeys(twse + tpex))
+    symbols = list(dict.fromkeys(twse + tpex))
 
-    if len(all_symbols) < TOP_N:
+    if len(symbols) < TOP_N:
         raise UpdateError(
             "清單數量驗證",
-            f"全市場只有 {len(all_symbols)} 檔",
-            "股票數量異常，停止更新以保護原資料。"
+            f"只取得 {len(symbols)} 檔股票",
+            "股票清單異常，停止更新。"
         )
 
     print(
-        f"官方普通股總數：{len(all_symbols)}",
+        f"官方普通股總數：{len(symbols)}",
         flush=True
     )
 
-    return all_symbols, len(twse), len(tpex)
+    return symbols, len(twse), len(tpex)
 
 
 # =========================================================
-# 2. 取得 Yahoo Finance 市值
+# 2. Yahoo Finance 市值查詢
 # =========================================================
 
 def get_top_640_by_market_cap(symbols):
     print("階段 2：取得股票市值", flush=True)
 
     market_caps = []
-    failed_symbols = []
+    failures = []
+    error_counts = Counter()
+
     total = len(symbols)
+    consecutive_failures = 0
 
     for i, symbol in enumerate(symbols, 1):
+        error_type = None
+        error_message = ""
+
         try:
             ticker = yf.Ticker(symbol)
             info = ticker.fast_info
 
-            mc = info.get("market_cap")
+            market_cap = info.get("market_cap")
 
-            if mc is None:
-                mc = getattr(info, "market_cap", None)
+            if market_cap is None:
+                market_cap = getattr(
+                    info, "market_cap", None
+                )
 
-            mc = float(mc) if mc is not None else 0
+            market_cap = (
+                float(market_cap)
+                if market_cap is not None
+                else 0
+            )
 
-            if math.isfinite(mc) and mc > 0:
+            if not math.isfinite(market_cap) or market_cap <= 0:
+                error_type = "InvalidMarketCap"
+                error_message = "市值為空值、零或無效數值"
+
+            else:
                 market_caps.append({
                     "Symbol": symbol,
-                    "MarketCap": mc
+                    "MarketCap": market_cap
                 })
-            else:
-                failed_symbols.append(symbol)
+                consecutive_failures = 0
 
-        except Exception:
-            failed_symbols.append(symbol)
+        except Exception as e:
+            error_type = type(e).__name__
+            error_message = str(e)[:250]
+
+        if error_type is not None:
+            failures.append({
+                "Symbol": symbol,
+                "ErrorType": error_type,
+                "Message": error_message
+            })
+
+            error_counts[error_type] += 1
+            consecutive_failures += 1
+
+            # 只列出部分錯誤，避免 Log 過長
+            if len(failures) <= MAX_PRINT_ERRORS:
+                print(
+                    f"[FAILED] {i}/{total} "
+                    f"{symbol} | {error_type} | "
+                    f"{error_message}",
+                    flush=True
+                )
+
+            # 如果偵測到明確限流，立即停止
+            rate_limit_detected = (
+                "RateLimit" in error_type
+                or "429" in error_message
+                or "Too Many Requests" in error_message
+            )
+
+            if rate_limit_detected:
+                raise UpdateError(
+                    "Yahoo Finance 頻率限制",
+                    f"第 {i} 檔 {symbol} 發生限制："
+                    f"{error_type} - {error_message}",
+                    "停止本次市值更新，"
+                    "保留舊名單並繼續每日市場寬度更新。"
+                )
+
+            # 如果連續大量失敗，提前停止
+            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                recent_failures = failures[
+                    -MAX_CONSECUTIVE_FAILURES:
+                ]
+
+                examples = ", ".join(
+                    item["Symbol"]
+                    for item in recent_failures[:5]
+                )
+
+                raise UpdateError(
+                    "Yahoo 連續查詢失敗",
+                    f"在第 {i} 檔附近連續失敗 "
+                    f"{consecutive_failures} 次。"
+                    f"例如：{examples}。"
+                    f"錯誤統計：{dict(error_counts)}",
+                    "可能為限流、暫時性連線問題"
+                    "或某區段股票資料異常；"
+                    "請檢查個別錯誤訊息。"
+                )
 
         if i % 100 == 0 or i == total:
             print(
                 f"進度 {i}/{total}，"
                 f"成功 {len(market_caps)}，"
-                f"失敗 {len(failed_symbols)}",
+                f"失敗 {len(failures)}",
                 flush=True
             )
 
@@ -268,14 +355,19 @@ def get_top_640_by_market_cap(symbols):
         flush=True
     )
 
-    if valid_count < TOP_N or coverage < MIN_COVERAGE:
+    if (
+        valid_count < TOP_N
+        or coverage < MIN_COVERAGE
+    ):
         raise UpdateError(
             "Yahoo 市值取得率",
             f"有效 {valid_count}/{total} 檔，"
             f"覆蓋率 {coverage:.1%}，"
-            f"未達 {MIN_COVERAGE:.0%} 門檻",
-            "Yahoo Finance 可能發生限流或缺資料；"
-            "請稍後重試，或改採分批及市值快取方式。"
+            f"未達 {MIN_COVERAGE:.0%} 門檻。"
+            f"錯誤分類：{dict(error_counts)}",
+            "不降低覆蓋率門檻，"
+            "保留原始 CSV，"
+            "使用舊清單更新市場寬度。"
         )
 
     df = pd.DataFrame(market_caps)
@@ -283,29 +375,22 @@ def get_top_640_by_market_cap(symbols):
     df = (
         df.drop_duplicates("Symbol")
         .sort_values(
-            by=["MarketCap", "Symbol"],
+            ["MarketCap", "Symbol"],
             ascending=[False, True]
         )
         .head(TOP_N)
         .reset_index(drop=True)
     )
 
-    if len(df) != TOP_N:
-        raise UpdateError(
-            "市值排序驗證",
-            f"排序後僅有 {len(df)} 檔股票",
-            "檢查是否有重複代號或異常市值。"
-        )
-
-    return df, valid_count, failed_symbols, coverage
+    return df, valid_count, failures, coverage
 
 
 # =========================================================
-# 3. 輸出 CSV
+# 3. 安全儲存 CSV
 # =========================================================
 
 def save_tickers(df):
-    print("階段 3：匯出股票清單", flush=True)
+    print("階段 3：儲存 tickers.csv", flush=True)
 
     temp_file = OUTPUT.with_suffix(".tmp")
 
@@ -322,10 +407,12 @@ def save_tickers(df):
             len(check) != TOP_N
             or check["Symbol"].isna().any()
             or check["Symbol"].duplicated().any()
+            or not check["Symbol"].astype(str)
+                .str.fullmatch(r"\d{4}\.(TW|TWO)")
+                .all()
         ):
-            raise ValueError("CSV 驗證不通過")
+            raise ValueError("CSV 資料驗證失敗")
 
-        # 驗證成功後才取代正式檔案
         os.replace(temp_file, OUTPUT)
 
     except Exception as e:
@@ -333,20 +420,20 @@ def save_tickers(df):
             temp_file.unlink()
 
         raise UpdateError(
-            "CSV 寫入",
+            "CSV 儲存失敗",
             str(e),
-            "檢查 CSV 欄位、權限及檔案內容。"
+            "請確認欄位、檔案格式及寫入權限。"
         ) from e
 
-    print(f"成功更新：{OUTPUT}", flush=True)
+    print("tickers.csv 更新成功", flush=True)
 
 
 # =========================================================
-# 4. 主程式及 GitHub Actions 錯誤摘要
+# 4. 主程式和 GitHub Summary
 # =========================================================
 
 def main():
-    started = time.monotonic()
+    start_time = time.monotonic()
 
     try:
         symbols, twse_count, tpex_count = (
@@ -356,22 +443,19 @@ def main():
         (
             df,
             valid_count,
-            failed_symbols,
+            failures,
             coverage
         ) = get_top_640_by_market_cap(symbols)
 
         save_tickers(df)
 
         last = df.iloc[-1]
-        elapsed = time.monotonic() - started
+        elapsed = time.monotonic() - start_time
 
-        print("\n股票名單更新成功", flush=True)
-        print(f"市值前 {TOP_N} 大股票")
-        print(f"第 {TOP_N} 名：{last['Symbol']}")
-        print(f"耗時：{elapsed:.1f} 秒")
+        print("✅ 市值前 640 大更新成功")
 
         write_summary([
-            "## ✅ 股票清單更新成功",
+            "## ✅ 股票市值排名更新成功",
             "",
             "| 項目 | 結果 |",
             "|---|---|",
@@ -379,25 +463,28 @@ def main():
             f"| 上櫃普通股 | {tpex_count} |",
             f"| 官方總數 | {len(symbols)} |",
             f"| 有效市值 | {valid_count} |",
-            f"| 市值取得率 | {coverage:.1%} |",
-            f"| 市值排名名單 | {TOP_N} 檔 |",
-            f"| 第 {TOP_N} 名 | {last['Symbol']} |",
-            f"| 第 {TOP_N} 名市值 | "
-            f"{last['MarketCap']/1e8:.2f} 億（Yahoo 回傳幣別） |",
-            f"| 抓取失敗數 | {len(failed_symbols)} |",
-            f"| 執行時間 | {elapsed:.1f} 秒 |",
+            f"| 覆蓋率 | {coverage:.1%} |",
+            f"| 更新股票數 | {TOP_N} |",
+            f"| 第 640 名 | {last['Symbol']} |",
+            f"| 耗時 | {elapsed:.1f} 秒 |",
             "",
-            "注意：市值缺漏可能影響實際排名；"
-            "覆蓋率達標不等於完整市場排名。",
+            "### 失敗股票（最多 30 檔）",
             "",
-            "### 部分缺漏股票",
-            ", ".join(failed_symbols[:30])
-            if failed_symbols else "無"
+            *[
+                f"- `{x['Symbol']}`："
+                f"{safe_text(x['ErrorType'])}"
+                for x in failures[:30]
+            ],
+            "",
+            "注意：覆蓋率達標仍無法保證"
+            "市值前 640 大完全沒有缺漏。"
         ])
 
     except UpdateError as e:
-        print(f"\n❌ 更新失敗：{e.stage}", flush=True)
-        print(str(e), flush=True)
+        print(
+            f"\n❌ {e.stage}\n{e}",
+            flush=True
+        )
 
         write_summary([
             "## ❌ 股票清單更新失敗",
@@ -405,26 +492,25 @@ def main():
             "| 項目 | 內容 |",
             "|---|---|",
             f"| 失敗階段 | {safe_text(e.stage)} |",
-            f"| 錯誤原因 | {safe_text(e)} |",
-            f"| 建議處理 | {safe_text(e.suggestion)} |",
-            "| 原始 CSV | 未在本次失敗流程中覆蓋 |"
+            f"| 原因 | {safe_text(e)} |",
+            f"| 建議 | {safe_text(e.suggestion)} |",
+            "| tickers.csv | 未覆蓋原有檔案 |",
+            "",
+            "後續工作流程將驗證舊名單，"
+            "合格時繼續更新市場寬度圖表。"
         ])
 
         raise SystemExit(1)
 
     except Exception as e:
-        print("\n❌ 未預期錯誤", flush=True)
         traceback.print_exc(limit=5)
 
         write_summary([
-            "## ❌ 未預期錯誤",
+            "## ❌ 未預期的程式錯誤",
             "",
-            f"**錯誤類型：** `{type(e).__name__}`",
+            f"錯誤類型：`{type(e).__name__}`",
             "",
-            f"**錯誤內容：** {safe_text(e)}",
-            "",
-            "建議檢查 GitHub Actions Log，"
-            "或確認相關套件版本。"
+            f"內容：{safe_text(e)}"
         ])
 
         raise SystemExit(1)

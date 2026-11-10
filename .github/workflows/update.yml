@@ -3,17 +3,23 @@ name: Daily Market Breadth Update
 
 on:
   schedule:
-    # 台灣時間週一至週五 15:00
-    - cron: '0 7 * * 1-5'
+    # 週一：更新市值排名 + 圖表
+    - cron: '0 7 * * 1'
 
-  # 允許手動執行
+    # 週二至週五：只更新圖表
+    - cron: '0 7 * * 2-5'
+
   workflow_dispatch:
+    inputs:
+      update_tickers:
+        description: '是否重新抓取市值前 640 大？'
+        required: true
+        default: false
+        type: boolean
 
-# 允許 Actions 更新 CSV 與網頁
 permissions:
   contents: write
 
-# 避免多次執行互相干擾
 concurrency:
   group: market-breadth-update
   cancel-in-progress: false
@@ -25,15 +31,21 @@ jobs:
     timeout-minutes: 90
 
     steps:
-      # ==========================================
-      # 1. 準備執行環境
-      # ==========================================
+      # ========================================
+      # 1. 下載專案
+      # ========================================
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+
+      # ========================================
+      # 2. Python 環境
+      # ========================================
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -45,29 +57,131 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # ==========================================
-      # 2. 更新股票市值前 640 大清單
-      # ==========================================
+      # ========================================
+      # 3. 判斷是否需要更新市值排名
+      # ========================================
+
+      - name: Determine Update Mode
+        id: mode
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          MANUAL_UPDATE: ${{ inputs.update_tickers }}
+        run: |
+          SHOULD_UPDATE=false
+
+          if [[ "$EVENT_NAME" == "schedule" &&
+                "$SCHEDULE" == "0 7 * * 1" ]]; then
+            SHOULD_UPDATE=true
+          fi
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" &&
+                "$MANUAL_UPDATE" == "true" ]]; then
+            SHOULD_UPDATE=true
+          fi
+
+          echo "update=$SHOULD_UPDATE" >> "$GITHUB_OUTPUT"
+          echo "Update tickers: $SHOULD_UPDATE"
+
+      # ========================================
+      # 4. 每週更新市值前 640 大
+      # ========================================
 
       - name: Update Top 640 Stock List
         id: tickers
+        if: steps.mode.outputs.update == 'true'
+        continue-on-error: true
         run: |
           python update_tickers.py
 
-      # ==========================================
-      # 3. 更新市場寬度與布林通道
-      # ==========================================
+      # ========================================
+      # 5. 驗證股票清單
+      # ========================================
+
+      - name: Validate Stock List
+        id: validate
+        env:
+          UPDATE_REQUESTED: ${{ steps.mode.outputs.update }}
+          TICKER_OUTCOME: ${{ steps.tickers.outcome }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import pandas as pd
+
+          path = Path("tickers.csv")
+
+          if not path.exists():
+              raise RuntimeError(
+                  "找不到 tickers.csv，無法更新圖表"
+              )
+
+          df = pd.read_csv(path)
+
+          if list(df.columns) != ["Symbol"]:
+              raise RuntimeError(
+                  "tickers.csv 欄位必須只有 Symbol"
+              )
+
+          symbols = df["Symbol"].dropna().astype(str)
+
+          if len(df) != 640 or len(symbols) != 640:
+              raise RuntimeError(
+                  f"股票清單數量異常：{len(df)}"
+              )
+
+          if symbols.duplicated().any():
+              raise RuntimeError("股票代號重複")
+
+          if not symbols.str.fullmatch(
+              r"\d{4}\.(TW|TWO)"
+          ).all():
+              raise RuntimeError("股票代號格式錯誤")
+
+          requested = os.environ["UPDATE_REQUESTED"]
+          outcome = os.environ["TICKER_OUTCOME"]
+
+          if requested == "true" and outcome == "failure":
+              message = (
+                  "⚠️ Yahoo 市值更新失敗，"
+                  "使用原有 640 檔股票清單。"
+              )
+          elif requested == "true" and outcome == "success":
+              message = (
+                  "✅ 最新市值前 640 大清單通過驗證。"
+              )
+          else:
+              message = (
+                  "✅ 本日不重新排名，"
+                  "沿用現有 640 檔股票清單。"
+              )
+
+          print(message)
+
+          with open(
+              os.environ["GITHUB_STEP_SUMMARY"],
+              "a",
+              encoding="utf-8"
+          ) as f:
+              f.write("## 股票清單使用狀態\n\n")
+              f.write(message + "\n\n")
+              f.write(f"有效股票數量：{len(symbols)}\n\n")
+          PY
+
+      # ========================================
+      # 6. 每日更新市場寬度圖表
+      # ========================================
 
       - name: Generate Market Breadth Dashboard
         id: dashboard
         run: |
           python main.py
 
-      # ==========================================
-      # 4. 提交更新結果
-      # ==========================================
+      # ========================================
+      # 7. GitHub 自動提交
+      # ========================================
 
-      - name: Commit and Push changes
+      - name: Commit and Push
         id: publish
         run: |
           git config user.name "github-actions[bot]"
@@ -76,61 +190,60 @@ jobs:
           git add tickers.csv index.html
 
           if git diff --cached --quiet; then
-            echo "沒有資料變更，不需要提交"
+            echo "沒有變更，不需要提交"
           else
-            git commit -m "Auto-update market breadth and Top 640"
+            git commit -m "Auto-update market breadth"
             git push
           fi
 
-      # ==========================================
-      # 5. 自動產生 GitHub Actions 錯誤摘要
-      # ==========================================
+      # ========================================
+      # 8. 最後執行摘要
+      # ========================================
 
-      - name: Generate Execution Summary
+      - name: Execution Summary
         if: always()
         env:
+          MODE: ${{ steps.mode.outputs.update }}
           INSTALL: ${{ steps.install.outcome }}
           TICKERS: ${{ steps.tickers.outcome }}
+          VALIDATE: ${{ steps.validate.outcome }}
           DASHBOARD: ${{ steps.dashboard.outcome }}
           PUBLISH: ${{ steps.publish.outcome }}
-        shell: bash
         run: |
-          echo "## 📊 每日市場寬度更新報告" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 執行階段 | 狀態 |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Python 套件安裝 | $INSTALL |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 股票市值前 640 大 | $TICKERS |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 市場寬度圖表 | $DASHBOARD |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| GitHub 自動提交 | $PUBLISH |" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## 📊 每日市場寬度執行報告"
+            echo ""
+            echo "| 項目 | 執行狀態 |"
+            echo "|---|---|"
+            echo "| 套件安裝 | $INSTALL |"
+            echo "| 是否要求更新市值 | $MODE |"
+            echo "| 市值前 640 大 | $TICKERS |"
+            echo "| 股票名單驗證 | $VALIDATE |"
+            echo "| 市場寬度圖表 | $DASHBOARD |"
+            echo "| GitHub 提交 | $PUBLISH |"
+            echo ""
 
-          if [[ "$INSTALL" == "failure" ]]; then
-            echo "### ❌ 套件安裝失敗" >> "$GITHUB_STEP_SUMMARY"
-            echo "請檢查 requirements.txt 與套件版本。" >> "$GITHUB_STEP_SUMMARY"
-
-          elif [[ "$TICKERS" == "failure" ]]; then
-            echo "### ❌ 股票名單更新失敗" >> "$GITHUB_STEP_SUMMARY"
-            echo "詳細原因請查看上方 Python 診斷摘要。" >> "$GITHUB_STEP_SUMMARY"
-            echo "本次不會執行圖表更新。" >> "$GITHUB_STEP_SUMMARY"
-
-          elif [[ "$DASHBOARD" == "failure" ]]; then
-            echo "### ❌ 市場寬度圖表產生失敗" >> "$GITHUB_STEP_SUMMARY"
-            echo "請檢查 main.py 與 Yahoo Finance 報價下載。" >> "$GITHUB_STEP_SUMMARY"
-            echo "本次不會推送新檔案。" >> "$GITHUB_STEP_SUMMARY"
-
-          elif [[ "$PUBLISH" == "failure" ]]; then
-            echo "### ❌ GitHub 提交失敗" >> "$GITHUB_STEP_SUMMARY"
-            echo "請檢查 Actions 寫入權限、分支保護及推送衝突。" >> "$GITHUB_STEP_SUMMARY"
-
-          elif [[ "$INSTALL" == "success" &&
-                  "$TICKERS" == "success" &&
+            if [[ "$VALIDATE" == "success" &&
                   "$DASHBOARD" == "success" &&
                   "$PUBLISH" == "success" ]]; then
-            echo "### ✅ 全部更新完成" >> "$GITHUB_STEP_SUMMARY"
-            echo "股票清單與市場寬度圖表已完成處理。" >> "$GITHUB_STEP_SUMMARY"
 
-          else
-            echo "### ⚠️ 工作流程未完整執行" >> "$GITHUB_STEP_SUMMARY"
-            echo "請檢查上方各步驟狀態。" >> "$GITHUB_STEP_SUMMARY"
-          fi
+              if [[ "$TICKERS" == "failure" ]]; then
+                echo "### ⚠️ 圖表成功，市值更新失敗"
+                echo ""
+                echo "使用原有 640 檔完成圖表更新。"
+
+              elif [[ "$TICKERS" == "success" ]]; then
+                echo "### ✅ 市值與圖表均更新成功"
+
+              else
+                echo "### ✅ 每日圖表更新完成"
+                echo ""
+                echo "本次未執行市值重新排名。"
+              fi
+
+            else
+              echo "### ❌ 更新流程未完整完成"
+              echo ""
+              echo "請查看上方失敗步驟。"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

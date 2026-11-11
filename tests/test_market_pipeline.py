@@ -56,6 +56,24 @@ class PriceTests(unittest.TestCase):
         self.assertTrue(pd.isna(masked.iloc[0]))
         self.assertEqual(masked.iloc[1], 45.0)
 
+    def test_newly_added_stock_receives_full_history(self):
+        from unittest.mock import patch
+        from market_cache import load_stock_closes
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "stock_closes.csv.gz"
+            dates = pd.date_range("2026-06-01", periods=120, freq="B")
+            old = pd.DataFrame({"A.TW": [100.0] * 120}, index=dates)
+            _write_cache(path, old)
+            requests = []
+            def fake_download(symbols, period):
+                requests.append((tuple(symbols), period))
+                subset = dates[-22:] if period == "1mo" else dates
+                return pd.DataFrame({x: [100.0] * len(subset) for x in symbols}, index=subset)
+            with patch("market_cache.CLOSE_PATH", path):
+                result = load_stock_closes(["A.TW", "B.TW"], fake_download)
+            self.assertIn((("B.TW",), "2y"), requests)
+            self.assertEqual(result["B.TW"].notna().sum(), 120)
+
     def test_cache_round_trip(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "quotes.csv.gz"

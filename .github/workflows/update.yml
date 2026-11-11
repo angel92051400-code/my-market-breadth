@@ -3,11 +3,13 @@ name: Daily Market Breadth Update
 
 on:
   schedule:
-    # 週一：更新市值排名 + 圖表
-    - cron: '0 7 * * 1'
+    # 台灣時間週一 15:17
+    # 更新市值前 640 大 + 市場寬度圖表
+    - cron: '17 7 * * 1'
 
-    # 週二至週五：只更新圖表
-    - cron: '0 7 * * 2-5'
+    # 台灣時間週二至週五 15:17
+    # 只更新市場寬度圖表
+    - cron: '17 7 * * 2-5'
 
   workflow_dispatch:
     inputs:
@@ -32,20 +34,18 @@ jobs:
 
     steps:
       # ========================================
-      # 1. 下載專案
+      # 1. 下載 GitHub 專案
       # ========================================
 
       - name: Checkout repository
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: true
+        uses: actions/checkout@v4
 
       # ========================================
-      # 2. Python 環境
+      # 2. 設定 Python 執行環境
       # ========================================
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -58,7 +58,7 @@ jobs:
           pip install -r requirements.txt
 
       # ========================================
-      # 3. 判斷是否需要更新市值排名
+      # 3. 判斷是否需要更新股票市值排名
       # ========================================
 
       - name: Determine Update Mode
@@ -67,14 +67,17 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           SCHEDULE: ${{ github.event.schedule }}
           MANUAL_UPDATE: ${{ inputs.update_tickers }}
+        shell: bash
         run: |
           SHOULD_UPDATE=false
 
+          # 每週一自動更新
           if [[ "$EVENT_NAME" == "schedule" &&
-                "$SCHEDULE" == "0 7 * * 1" ]]; then
+                "$SCHEDULE" == "17 7 * * 1" ]]; then
             SHOULD_UPDATE=true
           fi
 
+          # 手動執行時可以自行選擇
           if [[ "$EVENT_NAME" == "workflow_dispatch" &&
                 "$MANUAL_UPDATE" == "true" ]]; then
             SHOULD_UPDATE=true
@@ -106,8 +109,8 @@ jobs:
         run: |
           python - <<'PY'
           import os
-          from pathlib import Path
           import pandas as pd
+          from pathlib import Path
 
           path = Path("tickers.csv")
 
@@ -116,22 +119,25 @@ jobs:
                   "找不到 tickers.csv，無法更新圖表"
               )
 
-          df = pd.read_csv(path)
+          df = pd.read_csv(path, dtype=str)
 
           if list(df.columns) != ["Symbol"]:
               raise RuntimeError(
                   "tickers.csv 欄位必須只有 Symbol"
               )
 
-          symbols = df["Symbol"].dropna().astype(str)
-
-          if len(df) != 640 or len(symbols) != 640:
+          if len(df) != 640:
               raise RuntimeError(
-                  f"股票清單數量異常：{len(df)}"
+                  f"股票清單數量異常：{len(df)}，應為 640"
               )
 
+          symbols = df["Symbol"]
+
+          if symbols.isna().any():
+              raise RuntimeError("股票代號有空值")
+
           if symbols.duplicated().any():
-              raise RuntimeError("股票代號重複")
+              raise RuntimeError("股票代號有重複")
 
           if not symbols.str.fullmatch(
               r"\d{4}\.(TW|TWO)"
@@ -144,19 +150,20 @@ jobs:
           if requested == "true" and outcome == "failure":
               message = (
                   "⚠️ Yahoo 市值更新失敗，"
-                  "使用原有 640 檔股票清單。"
+                  "沿用原有 640 檔股票名單。"
               )
           elif requested == "true" and outcome == "success":
               message = (
-                  "✅ 最新市值前 640 大清單通過驗證。"
+                  "✅ 最新市值前 640 大名單驗證成功。"
               )
           else:
               message = (
                   "✅ 本日不重新排名，"
-                  "沿用現有 640 檔股票清單。"
+                  "沿用現有 640 檔股票名單。"
               )
 
           print(message)
+          print(f"有效股票數量：{len(symbols)}")
 
           with open(
               os.environ["GITHUB_STEP_SUMMARY"],
@@ -165,11 +172,13 @@ jobs:
           ) as f:
               f.write("## 股票清單使用狀態\n\n")
               f.write(message + "\n\n")
-              f.write(f"有效股票數量：{len(symbols)}\n\n")
+              f.write(
+                  f"有效股票數量：{len(symbols)}\n\n"
+              )
           PY
 
       # ========================================
-      # 6. 每日更新市場寬度圖表
+      # 6. 每日更新市場寬度儀表板
       # ========================================
 
       - name: Generate Market Breadth Dashboard
@@ -178,7 +187,7 @@ jobs:
           python main.py
 
       # ========================================
-      # 7. GitHub 自動提交
+      # 7. 自動提交到 GitHub
       # ========================================
 
       - name: Commit and Push
@@ -190,14 +199,14 @@ jobs:
           git add tickers.csv index.html
 
           if git diff --cached --quiet; then
-            echo "沒有變更，不需要提交"
+            echo "沒有資料變更，不需要提交"
           else
-            git commit -m "Auto-update market breadth"
+            git commit -m "Auto-update market breadth dashboard"
             git push
           fi
 
       # ========================================
-      # 8. 最後執行摘要
+      # 8. 產生完整執行摘要
       # ========================================
 
       - name: Execution Summary
@@ -209,18 +218,19 @@ jobs:
           VALIDATE: ${{ steps.validate.outcome }}
           DASHBOARD: ${{ steps.dashboard.outcome }}
           PUBLISH: ${{ steps.publish.outcome }}
+        shell: bash
         run: |
           {
-            echo "## 📊 每日市場寬度執行報告"
+            echo "## 📊 每日市場寬度更新報告"
             echo ""
-            echo "| 項目 | 執行狀態 |"
+            echo "| 執行階段 | 狀態 |"
             echo "|---|---|"
-            echo "| 套件安裝 | $INSTALL |"
-            echo "| 是否要求更新市值 | $MODE |"
+            echo "| Python 套件安裝 | $INSTALL |"
+            echo "| 是否更新市值排名 | $MODE |"
             echo "| 市值前 640 大 | $TICKERS |"
             echo "| 股票名單驗證 | $VALIDATE |"
             echo "| 市場寬度圖表 | $DASHBOARD |"
-            echo "| GitHub 提交 | $PUBLISH |"
+            echo "| GitHub 自動提交 | $PUBLISH |"
             echo ""
 
             if [[ "$VALIDATE" == "success" &&
@@ -228,22 +238,24 @@ jobs:
                   "$PUBLISH" == "success" ]]; then
 
               if [[ "$TICKERS" == "failure" ]]; then
-                echo "### ⚠️ 圖表成功，市值更新失敗"
+                echo "### ⚠️ 部分成功"
                 echo ""
-                echo "使用原有 640 檔完成圖表更新。"
+                echo "市值更新失敗，但已使用原有清單完成圖表更新。"
 
               elif [[ "$TICKERS" == "success" ]]; then
-                echo "### ✅ 市值與圖表均更新成功"
+                echo "### ✅ 全部成功"
+                echo ""
+                echo "股票市值排名與市場寬度圖表均已更新。"
 
               else
-                echo "### ✅ 每日圖表更新完成"
+                echo "### ✅ 每日圖表更新成功"
                 echo ""
-                echo "本次未執行市值重新排名。"
+                echo "本次使用現有股票名單。"
               fi
 
             else
-              echo "### ❌ 更新流程未完整完成"
+              echo "### ❌ 更新未完整完成"
               echo ""
-              echo "請查看上方失敗步驟。"
+              echo "請查看失敗步驟及上方診斷資訊。"
             fi
           } >> "$GITHUB_STEP_SUMMARY"

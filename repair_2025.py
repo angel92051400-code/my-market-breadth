@@ -31,6 +31,15 @@ MIN_COVERAGE = 0.95
 REPORT = ROOT / "data" / "repair_2025_report.json"
 
 
+def repair_span(dates, targeted, lookback=60):
+    """Select all target dates plus lookback-1 *preceding trading sessions*."""
+    if len(targeted) == 0 or lookback < 2:
+        raise ValueError("No target sessions or invalid lookback")
+    i = dates.get_loc(targeted[0])
+    j = dates.get_loc(targeted[-1])
+    return dates[max(0, i-lookback+1):j+1]
+
+
 def number(value):
     if value is None:
         return np.nan
@@ -74,6 +83,8 @@ def get_table_rows(payload):
 def normalize_day(payload, day):
     if isinstance(payload, dict):
         reported = str(payload.get("date", "")).replace("-", "").replace("/", "")
+        if re.fullmatch(r"\d{7}", reported):
+            reported = str(int(reported[:3]) + 1911) + reported[3:]
         if re.fullmatch(r"\d{8}", reported) and reported != day.replace("-", ""):
             raise ValueError(f"官方回傳日期 {reported} 與要求日期 {day} 不符")
 
@@ -163,9 +174,7 @@ def main():
     # Historical MA60 depends on the *previous 59 trading sessions*, not
     # merely on whether a day's raw close is present. The earlier version only
     # fetched one date even though all 60 target dates failed MA60 coverage.
-    first_target_pos = dates.get_loc(targeted[0])
-    warmup_start_pos = max(0, first_target_pos - 59)
-    repair_dates = dates[warmup_start_pos: dates.get_loc(targeted[-1]) + 1]
+    repair_dates = repair_span(dates, targeted, lookback=60)
     existing = existing.reindex(index=existing.index.union(repair_dates).sort_values())
     _, _, initial_ma60_valid, _ = calc_breadth(existing, top, dates)
     failed_before = targeted[initial_ma60_valid.reindex(targeted, fill_value=0) < math.ceil(len(top)*MIN_COVERAGE)]

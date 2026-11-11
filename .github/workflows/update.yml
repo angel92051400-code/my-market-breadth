@@ -1,23 +1,21 @@
-
 name: Daily Market Breadth Update
 
 on:
   schedule:
-    # 台灣時間週一 15:17
-    # 更新市值前 640 大 + 市場寬度圖表
-    - cron: '17 7 * * 1'
-
-    # 台灣時間週二至週五 15:17
-    # 只更新市場寬度圖表
-    - cron: '17 7 * * 2-5'
-
+    # Taipei 15:17; official TWSE calendar handles weekends and national holidays.
+    - cron: '17 7 * * *'
   workflow_dispatch:
     inputs:
       update_tickers:
-        description: '是否重新抓取市值前 640 大？'
+        description: '手動更新市值前 640 大'
+        type: boolean
         required: true
         default: false
+      full_refresh:
+        description: '完整校驗近兩年歷史報價（較慢）'
         type: boolean
+        required: true
+        default: false
 
 permissions:
   contents: write
@@ -28,21 +26,11 @@ concurrency:
 
 jobs:
   build:
-    name: build
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-
+    timeout-minutes: 110
     steps:
-      # ========================================
-      # 1. 下載 GitHub 專案
-      # ========================================
-
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      # ========================================
-      # 2. 設定 Python 執行環境
-      # ========================================
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -51,211 +39,126 @@ jobs:
           cache: 'pip'
           cache-dependency-path: requirements.txt
 
+      - name: Check TWSE trading calendar
+        id: calendar
+        run: python market_calendar.py
+
       - name: Install dependencies
         id: install
+        if: steps.calendar.outputs.status != 'closed'
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # ========================================
-      # 3. 判斷是否需要更新股票市值排名
-      # ========================================
-
-      - name: Determine Update Mode
+      - name: Determine update mode
         id: mode
+        if: steps.calendar.outputs.status != 'closed'
         env:
           EVENT_NAME: ${{ github.event_name }}
-          SCHEDULE: ${{ github.event.schedule }}
-          MANUAL_UPDATE: ${{ inputs.update_tickers }}
+          MANUAL_TICKERS: ${{ inputs.update_tickers }}
+          MANUAL_FULL: ${{ inputs.full_refresh }}
         shell: bash
         run: |
-          SHOULD_UPDATE=false
-
-          # 每週一自動更新
-          if [[ "$EVENT_NAME" == "schedule" &&
-                "$SCHEDULE" == "17 7 * * 1" ]]; then
-            SHOULD_UPDATE=true
+          UPDATE_TICKERS=false
+          FULL_REFRESH=false
+          DOW=$(TZ=Asia/Taipei date +%u)
+          if [[ "$EVENT_NAME" == "schedule" && "$DOW" == "1" ]]; then
+            UPDATE_TICKERS=true
+            FULL_REFRESH=true
           fi
-
-          # 手動執行時可以自行選擇
-          if [[ "$EVENT_NAME" == "workflow_dispatch" &&
-                "$MANUAL_UPDATE" == "true" ]]; then
-            SHOULD_UPDATE=true
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$MANUAL_TICKERS" == "true" ]]; then
+            UPDATE_TICKERS=true
           fi
-
-          echo "update=$SHOULD_UPDATE" >> "$GITHUB_OUTPUT"
-          echo "Update tickers: $SHOULD_UPDATE"
-
-      # ========================================
-      # 4. 每週更新市值前 640 大
-      # ========================================
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$MANUAL_FULL" == "true" ]]; then
+            FULL_REFRESH=true
+          fi
+          echo "tickers=$UPDATE_TICKERS" >> "$GITHUB_OUTPUT"
+          echo "full=$FULL_REFRESH" >> "$GITHUB_OUTPUT"
 
       - name: Update Top 640 Stock List
         id: tickers
-        if: steps.mode.outputs.update == 'true'
+        if: steps.mode.outputs.tickers == 'true'
         continue-on-error: true
-        run: |
-          python update_tickers.py
-
-      # ========================================
-      # 5. 驗證股票清單
-      # ========================================
+        run: python update_tickers.py
 
       - name: Validate Stock List
         id: validate
-        env:
-          UPDATE_REQUESTED: ${{ steps.mode.outputs.update }}
-          TICKER_OUTCOME: ${{ steps.tickers.outcome }}
+        if: steps.calendar.outputs.status != 'closed'
         run: |
           python - <<'PY'
-          import os
           import pandas as pd
           from pathlib import Path
-
           path = Path("tickers.csv")
-
           if not path.exists():
-              raise RuntimeError(
-                  "找不到 tickers.csv，無法更新圖表"
-              )
-
+              raise RuntimeError("缺少 tickers.csv")
           df = pd.read_csv(path, dtype=str)
-
-          if list(df.columns) != ["Symbol"]:
-              raise RuntimeError(
-                  "tickers.csv 欄位必須只有 Symbol"
-              )
-
-          if len(df) != 640:
-              raise RuntimeError(
-                  f"股票清單數量異常：{len(df)}，應為 640"
-              )
-
-          symbols = df["Symbol"]
-
-          if symbols.isna().any():
-              raise RuntimeError("股票代號有空值")
-
-          if symbols.duplicated().any():
-              raise RuntimeError("股票代號有重複")
-
-          if not symbols.str.fullmatch(
-              r"\d{4}\.(TW|TWO)"
-          ).all():
-              raise RuntimeError("股票代號格式錯誤")
-
-          requested = os.environ["UPDATE_REQUESTED"]
-          outcome = os.environ["TICKER_OUTCOME"]
-
-          if requested == "true" and outcome == "failure":
-              message = (
-                  "⚠️ Yahoo 市值更新失敗，"
-                  "沿用原有 640 檔股票名單。"
-              )
-          elif requested == "true" and outcome == "success":
-              message = (
-                  "✅ 最新市值前 640 大名單驗證成功。"
-              )
-          else:
-              message = (
-                  "✅ 本日不重新排名，"
-                  "沿用現有 640 檔股票名單。"
-              )
-
-          print(message)
-          print(f"有效股票數量：{len(symbols)}")
-
-          with open(
-              os.environ["GITHUB_STEP_SUMMARY"],
-              "a",
-              encoding="utf-8"
-          ) as f:
-              f.write("## 股票清單使用狀態\n\n")
-              f.write(message + "\n\n")
-              f.write(
-                  f"有效股票數量：{len(symbols)}\n\n"
-              )
+          if list(df.columns) != ["Symbol"] or len(df) != 640:
+              raise RuntimeError("640 大清單數量或格式異常")
+          x = df["Symbol"]
+          if x.isna().any() or x.duplicated().any() or not x.str.fullmatch(r"\d{4}\.(TW|TWO)").all():
+              raise RuntimeError("640 大股票代號無效")
+          print("✅ 股票名單 640 檔驗證成功")
           PY
 
-      # ========================================
-      # 6. 每日更新市場寬度儀表板
-      # ========================================
-
-      - name: Generate Market Breadth Dashboard
+      - name: Generate Market Breadth Dashboard and quote cache
         id: dashboard
-        run: |
-          python main.py
+        if: steps.validate.outcome == 'success'
+        env:
+          MARKET_FULL_REFRESH: ${{ steps.mode.outputs.full }}
+          EXPECT_TRADE_DATE: ${{ steps.calendar.outputs.date }}
+        run: python main.py
 
-      # ========================================
-      # 7. 自動提交到 GitHub
-      # ========================================
+      - name: Archive official daily breadth and constituent version
+        id: archive
+        if: steps.dashboard.outcome == 'success'
+        env:
+          EXPECT_TRADE_DATE: ${{ steps.calendar.outputs.date }}
+        run: python market_daily.py
 
-      - name: Commit and Push
+      - name: Commit dashboard and validated persistent market data
         id: publish
+        if: steps.archive.outcome == 'success'
+        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add tickers.csv index.html
-
+          git add tickers.csv index.html data/stock_closes.csv.gz data/taiex_ohlc.csv.gz data/daily_breadth.csv data/constituents
           if git diff --cached --quiet; then
-            echo "沒有資料變更，不需要提交"
+            echo "本日沒有新資料，無須提交"
           else
-            git commit -m "Auto-update market breadth dashboard"
+            git commit -m "Archive validated Taiwan market data and dashboard"
+            git pull --rebase origin main
             git push
           fi
-
-      # ========================================
-      # 8. 產生完整執行摘要
-      # ========================================
 
       - name: Execution Summary
         if: always()
         env:
-          MODE: ${{ steps.mode.outputs.update }}
-          INSTALL: ${{ steps.install.outcome }}
+          CALENDAR: ${{ steps.calendar.outputs.status }}
           TICKERS: ${{ steps.tickers.outcome }}
           VALIDATE: ${{ steps.validate.outcome }}
           DASHBOARD: ${{ steps.dashboard.outcome }}
+          ARCHIVE: ${{ steps.archive.outcome }}
           PUBLISH: ${{ steps.publish.outcome }}
         shell: bash
         run: |
           {
-            echo "## 📊 每日市場寬度更新報告"
+            echo "## 每日市場寬度工作流程"
             echo ""
-            echo "| 執行階段 | 狀態 |"
+            echo "| 項目 | 狀態 |"
             echo "|---|---|"
-            echo "| Python 套件安裝 | $INSTALL |"
-            echo "| 是否更新市值排名 | $MODE |"
-            echo "| 市值前 640 大 | $TICKERS |"
-            echo "| 股票名單驗證 | $VALIDATE |"
-            echo "| 市場寬度圖表 | $DASHBOARD |"
-            echo "| GitHub 自動提交 | $PUBLISH |"
+            echo "| TWSE 交易日 | $CALENDAR |"
+            echo "| 更新 640 名單 | $TICKERS |"
+            echo "| 名單驗證 | $VALIDATE |"
+            echo "| 股價快取及圖表 | $DASHBOARD |"
+            echo "| 每日正式紀錄 | $ARCHIVE |"
+            echo "| GitHub 提交 | $PUBLISH |"
             echo ""
-
-            if [[ "$VALIDATE" == "success" &&
-                  "$DASHBOARD" == "success" &&
-                  "$PUBLISH" == "success" ]]; then
-
-              if [[ "$TICKERS" == "failure" ]]; then
-                echo "### ⚠️ 部分成功"
-                echo ""
-                echo "市值更新失敗，但已使用原有清單完成圖表更新。"
-
-              elif [[ "$TICKERS" == "success" ]]; then
-                echo "### ✅ 全部成功"
-                echo ""
-                echo "股票市值排名與市場寬度圖表均已更新。"
-
-              else
-                echo "### ✅ 每日圖表更新成功"
-                echo ""
-                echo "本次使用現有股票名單。"
-              fi
-
+            if [[ "$CALENDAR" == "closed" ]]; then
+              echo "✅ 官方休市：不下載、不新增、不改寫網站。"
+            elif [[ "$DASHBOARD" == "success" && "$ARCHIVE" == "success" && "$PUBLISH" == "success" ]]; then
+              echo "✅ 交易日報價、每日正式紀錄及網站已更新。"
             else
-              echo "### ❌ 更新未完整完成"
-              echo ""
-              echo "請查看失敗步驟及上方診斷資訊。"
+              echo "⚠️ 資料尚未符合發布條件，舊網站保留；請檢查上述步驟。"
             fi
           } >> "$GITHUB_STEP_SUMMARY"

@@ -258,7 +258,7 @@ def main():
         "taiexBB": {"upper": values(taiex_bma + 2*taiex_bstd, idx),
                     "lower": values(taiex_bma - 2*taiex_bstd, idx)},
         "universes": {}, "us": {},
-        "thresholds": {"hot":65, "cold":10},
+        "thresholds": {"hot":70, "veryHot":80, "cold":20, "veryCold":10},
         "newHighWindow":20,
         "longWindow":250,
     }
@@ -290,8 +290,8 @@ def main():
     lows = ((px < p20_low) & px.notna()).sum(axis=1)
     high_diff = highs - lows
     extreme = breadth["640"]["breadth"]
-    e_hot = extreme >= 65
-    e_cold = extreme <= 10
+    e_hot = extreme >= 70
+    e_cold = extreme <= 20
     # Real streaks on last 250 available trading sessions, not number of prior historic occurrences.
     recent_hot, recent_cold = e_hot.tail(250), e_cold.tail(250)
     payload["extra"] = {
@@ -335,8 +335,8 @@ main{max-width:1480px;margin:0 auto;padding:22px 18px 38px} .header{display:flex
 .header h1{font-size:22px;margin:0 0 6px}.meta{font-size:13px;color:var(--muted)}.tag{border:1px solid #4a515f;border-radius:6px;padding:4px 8px;color:#ced4de;font-size:12px;margin-right:8px}
 .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}.card{background:var(--card);border-radius:12px;padding:16px;min-height:125px}.card .label{font-size:13px;color:#bdc5d0;margin-bottom:7px}.card .value{font-size:29px;letter-spacing:-.8px;font-weight:700}.card .delta{font-size:14px;margin-left:8px}.card .note{font-size:12px;line-height:1.5;color:var(--muted);margin-top:5px}.up{color:var(--red)}.down{color:var(--green)}
 .toolbar{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;margin:12px 0}.controls{display:flex;flex-wrap:wrap;align-items:center;gap:9px}.controls label{font-size:13px;color:#b5bdca}.controls select,.controls input,.controls button{color:#e9edf3;background:#222730;border:1px solid #454c59;border-radius:7px;font-size:13px;padding:7px 9px;min-height:34px}.controls button{cursor:pointer}.controls button.active{background:#32465d;border-color:#69a8ee}.switches{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px}.switches label{font-size:12px;color:#c0c8d3;cursor:pointer}
-.chart-wrap{position:relative;width:100%}#chart{width:100%;height:570px}#crosshair{pointer-events:none;display:none;position:absolute;top:0;left:0;width:0;border-left:1px dashed rgba(222,233,247,.75);z-index:8;box-shadow:0 0 2px #000}.fib-controls select{color:#e9edf3;background:#222730;border:1px solid #454c59;border-radius:6px;padding:4px;font-size:12px}.controls button:disabled{opacity:.45;cursor:not-allowed}.hint{color:#8f9bab;font-size:12px;margin:8px 2px 14px}.panel{border:1px solid #292f39;background:#1b1f27;border-radius:12px;padding:16px;margin-top:14px}.panel h2{font-size:15px;font-weight:600;margin:0 0 12px}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.metric .m-label{font-size:12px;color:#b9c3d0}.metric .m-value{font-size:21px;font-weight:700;margin-top:4px}.foot{font-size:12px;color:#98a2b2;line-height:1.7;margin-top:12px}.warning{color:#f4be6a}.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;color:#b6c0cc;font-size:12px}.dot{display:inline-block;height:9px;width:9px;border-radius:100%;margin-right:5px}
-@media(max-width:950px){.cards{grid-template-columns:repeat(2,1fr)}.metrics{grid-template-columns:repeat(2,1fr)}#chart{height:520px}}@media(max-width:560px){main{padding:12px 9px}.cards{gap:8px}.card{padding:12px;min-height:120px}.card .value{font-size:22px}.toolbar{flex-direction:column}#chart{height:470px}.header h1{font-size:18px}.metrics{grid-template-columns:repeat(2,1fr)}}
+.chart-wrap{position:relative;width:100%}#chart{width:100%;height:740px}#crosshair{pointer-events:none;display:none;position:absolute;top:0;left:0;width:0;border-left:1px dashed rgba(222,233,247,.75);z-index:8;box-shadow:0 0 2px #000}.fib-controls select{color:#e9edf3;background:#222730;border:1px solid #454c59;border-radius:6px;padding:4px;font-size:12px}.controls button:disabled{opacity:.45;cursor:not-allowed}.hint{color:#8f9bab;font-size:12px;margin:8px 2px 14px}.panel{border:1px solid #292f39;background:#1b1f27;border-radius:12px;padding:16px;margin-top:14px}.panel h2{font-size:15px;font-weight:600;margin:0 0 12px}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.metric .m-label{font-size:12px;color:#b9c3d0}.metric .m-value{font-size:21px;font-weight:700;margin-top:4px}.foot{font-size:12px;color:#98a2b2;line-height:1.7;margin-top:12px}.warning{color:#f4be6a}.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;color:#b6c0cc;font-size:12px}.dot{display:inline-block;height:9px;width:9px;border-radius:100%;margin-right:5px}
+@media(max-width:950px){.cards{grid-template-columns:repeat(2,1fr)}.metrics{grid-template-columns:repeat(2,1fr)}#chart{height:700px}}@media(max-width:560px){main{padding:12px 9px}.cards{gap:8px}.card{padding:12px;min-height:120px}.card .value{font-size:22px}.toolbar{flex-direction:column}#chart{height:630px}.header h1{font-size:18px}.metrics{grid-template-columns:repeat(2,1fr)}}
 </style></head><body><main>
 <div class="header"><div><h1>台股市場寬度監測</h1><div><span class="tag" id="mood">讀取中</span><span class="meta" id="streak-head"></span></div></div><div class="meta" id="asof"></div></div>
 <section class="cards">
@@ -349,9 +349,9 @@ main{max-width:1480px;margin:0 auto;padding:22px 18px 38px} .header{display:flex
  <div class="controls"><label for="start">顯示區間</label><input type="date" id="start"/><span>—</span><input type="date" id="end"/><button type="button" id="reset">還原</button><button type="button" id="d1m">1 個月</button><button type="button" id="d3m">3 個月</button><button type="button" id="d6m">6 個月</button><button type="button" id="d1y">1 年</button><button type="button" id="dall">全部</button></div>
  <div class="controls"><label for="us-select">美股對照</label><select id="us-select"><option value="none">不顯示</option><option value="S&P 500">S&P 500（報酬%）</option><option value="Nasdaq-100">Nasdaq-100（報酬%）</option></select><label for="primary">台股寬度</label><select id="primary"><option value="640">前 640 大</option><option value="300">前 300 大</option><option value="all">全市場</option></select></div>
 </div>
-<div class="switches"><label><input type="checkbox" id="show300"/> 前 300 大</label><label><input type="checkbox" id="show640" checked/> 前 640 大</label><label><input type="checkbox" id="showall"/> 全市場</label><label><input type="checkbox" id="taiexbb"/> 大盤布林通道</label><label><input type="checkbox" id="breadthbb"/> 市場寬度布林通道</label><label><input type="checkbox" id="heat" checked/> 過熱門檻</label><label><input type="checkbox" id="cold" checked/> 過冷門檻</label><label><input type="checkbox" id="newbars" checked/> 新高－新低柱狀</label><label><input type="checkbox" id="fib"/> 費波那契回撤線</label><label class="fib-controls" for="fibdir">波段方向 <select id="fibdir"><option value="auto">自動（依高低點先後）</option><option value="up">上漲波段</option><option value="down">下跌波段</option></select></label></div>
-<div class="chart-wrap" id="chart-wrap"><div id="chart"></div><div id="crosshair" aria-hidden="true"></div></div><div class="hint" id="chart-hint">拖曳圖表可縮放、移動；滑鼠參考線會穿過主圖與下方漲跌幅／新高新低副圖。費波那契以所選日期區間的大盤最高／最低點自動計算，僅是可能價位，不是買賣保證。K 線與市場寬度共用日期軸，左右 Y 軸分別顯示股價點數及市場寬度百分比。美股線為指數累積報酬（非美股市場寬度），使用獨立 Y 軸。</div>
-<div class="panel"><h2>門檻與歷史脈絡 <span class="meta" id="coverage"></span></h2><div class="metrics"><div class="metric"><div class="m-label">距過熱門檻（640 大 ≥65%）</div><div class="m-value" id="hotgap">--</div></div><div class="metric"><div class="m-label">距過冷門檻（640 大 ≤10%）</div><div class="m-value" id="coldgap">--</div></div><div class="metric"><div class="m-label">近 250 交易日過熱次數</div><div class="m-value" id="hotcount">--</div></div><div class="metric"><div class="m-label">近 250 交易日過冷次數</div><div class="m-value" id="coldcount">--</div></div></div>
+<div class="switches"><label><input type="checkbox" id="show300"/> 前 300 大</label><label><input type="checkbox" id="show640" checked/> 前 640 大</label><label><input type="checkbox" id="showall"/> 全市場</label><label><input type="checkbox" id="taiexbb"/> 大盤布林通道</label><label><input type="checkbox" id="breadthbb"/> 市場寬度布林通道</label><label><input type="checkbox" id="heat" checked/> 過熱 70/80%</label><label><input type="checkbox" id="cold" checked/> 過冷 10/20%</label><label><input type="checkbox" id="newbars" checked/> 新高－新低柱狀</label><label><input type="checkbox" id="fib"/> 費波那契回撤線</label><label class="fib-controls" for="fibdir">波段方向 <select id="fibdir"><option value="auto">自動（依高低點先後）</option><option value="up">上漲波段</option><option value="down">下跌波段</option></select></label></div>
+<div class="chart-wrap" id="chart-wrap"><div id="chart"></div><div id="crosshair" aria-hidden="true"></div></div><div class="hint" id="chart-hint">拖曳圖表可縮放、移動；滑鼠參考線會穿過主圖與兩個獨立副圖；日期切換時三圖同步。費波那契以所選日期區間的大盤最高／最低點自動計算，僅是可能價位，不是買賣保證。K 線與市場寬度共用日期軸，左右 Y 軸分別顯示股價點數及市場寬度百分比。美股線為指數累積報酬（非美股市場寬度），使用獨立 Y 軸。</div>
+<div class="panel"><h2>門檻與歷史脈絡 <span class="meta" id="coverage"></span></h2><div class="metrics"><div class="metric"><div class="m-label">距過熱門檻（640 大 ≥70%）</div><div class="m-value" id="hotgap">--</div></div><div class="metric"><div class="m-label">距過冷門檻（640 大 ≤20%）</div><div class="m-value" id="coldgap">--</div></div><div class="metric"><div class="m-label">近 250 交易日過熱次數</div><div class="m-value" id="hotcount">--</div></div><div class="metric"><div class="m-label">近 250 交易日過冷次數</div><div class="m-value" id="coldcount">--</div></div></div>
 <div class="foot" id="details"></div></div>
 </main><script id="market-data" type="application/json">__DATA__</script>
 <script>
@@ -376,9 +376,9 @@ const highs=val(D.extra.highs),lows=val(D.extra.lows),diff=val(D.extra.highDiff)
 $('cnew').textContent=diff==null?'—':sign(diff,0); $('dnew').textContent='';$('nnew').textContent=`創高 ${fmt(highs,0)} / 創低 ${fmt(lows,0)}；以${D.extra.highUniverse==='all'?'全市場':'前640大'}有效收盤價計算`;
 const hi=val(D.candles.high),lo=val(D.candles.low),cl=val(D.candles.close);
 $('cprice').textContent=fmt(cl,0);$('dprice').textContent=sign(val(D.taiexReturn),2)+'%';$('nprice').textContent=`當日最高 ${fmt(hi,0)}／最低 ${fmt(lo,0)}；非逐筆即時數據`;
-$('asof').textContent='資料日 '+D.snapshotDate;const isHot=v640>=65,isCold=v640<=10;
-$('mood').textContent=isHot?'過熱':isCold?'過冷':'中性';$('streak-head').textContent=`連續 ${isHot?D.extra.hotStreak:isCold?D.extra.coldStreak:0} 個交易日（同一狀態）`;
-$('hotgap').textContent=fmt(v640-65,1)+' 個百分點';$('coldgap').textContent=fmt(v640-10,1)+' 個百分點';$('hotcount').textContent=D.extra.hotCount250+' 日';$('coldcount').textContent=D.extra.coldCount250+' 日';
+$('asof').textContent='資料日 '+D.snapshotDate;const isHot=v640>=70,isCold=v640<=20;
+$('mood').textContent=v640>=80?'極度過熱':isHot?'過熱':v640<=10?'極度過冷':isCold?'過冷':'中性';$('streak-head').textContent=`連續 ${isHot?D.extra.hotStreak:isCold?D.extra.coldStreak:0} 個交易日（同一狀態）`;
+$('hotgap').textContent=fmt(v640-70,1)+' 個百分點';$('coldgap').textContent=fmt(v640-20,1)+' 個百分點';$('hotcount').textContent=D.extra.hotCount250+' 日';$('coldcount').textContent=D.extra.coldCount250+' 日';
 $('coverage').textContent=`｜全市場來源：${D.officialSource}`;
 $('details').textContent='寬度＝收盤價同時高於 20 日與 60 日簡單移動平均線的有效股票比率；歷史布林通道為寬度 20 日平均 ±2 倍標準差，大盤布林通道為加權指數收盤價 20 日平均 ±2 倍標準差。新高／新低為當日收盤價突破先前 20 個有效交易日的收盤高／低，不是盤中高低或 52 週新高。紅漲、綠跌。歷史名單採用目前名單回推，並非各歷史日當時的市值前 640 大，存在成分股／存活者偏差。';
 let currentStart=D.dates[Math.max(0,last-99)],currentEnd=D.dates[last];
@@ -422,7 +422,7 @@ function hideCrosshair(){crosshair.style.display='none';}
 function drawCrosshair(evt){
   if(!evt||!evt.points||!evt.points.length||!chart._fullLayout)return;
   const lay=chart._fullLayout;
-  const ax=lay.xaxis,top=lay.yaxis,bottom=lay.yaxis3;
+  const ax=lay.xaxis,top=lay.yaxis,bottom=lay.yaxis5;
   if(!ax||!top||!bottom)return;
   const date=evt.points[0].x;
   let x;
@@ -443,12 +443,14 @@ function syncZoom(evt){
   let a=evt['xaxis.range[0]'],b=evt['xaxis.range[1]'];
   if((a==null||b==null)&&Array.isArray(evt['xaxis.range']))[a,b]=evt['xaxis.range'];
   if(a==null||b==null){a=evt['xaxis2.range[0]'];b=evt['xaxis2.range[1]'];}
+  if(a==null||b==null){a=evt['xaxis3.range[0]'];b=evt['xaxis3.range[1]'];}
   if((a==null||b==null)&&Array.isArray(evt['xaxis2.range']))[a,b]=evt['xaxis2.range'];
+  if((a==null||b==null)&&Array.isArray(evt['xaxis3.range']))[a,b]=evt['xaxis3.range'];
   if(a!=null&&b!=null){
     const date=d=>String(d).slice(0,10);
     const aa=clampDate(date(a)),bb=clampDate(date(b));
     if(aa<=bb){currentStart=aa;currentEnd=bb;uiRange();}
-  } else if(evt['xaxis.autorange']===true||evt['xaxis2.autorange']===true){
+  } else if(evt['xaxis.autorange']===true||evt['xaxis2.autorange']===true||evt['xaxis3.autorange']===true){
     currentStart=D.dates[0];currentEnd=D.dates[last];uiRange();
   }
 }
@@ -472,10 +474,10 @@ async function build(){
  const us=$('us-select').value;
  if(us!=='none'&&D.us[us])ts.push(trace(D.us[us].dates,D.us[us].values,us+' 累積報酬 (%)',us==='S&P 500'?'#f64da8':'#8b68e2','y4'));
  ts.push({type:'bar',name:'大盤日漲跌幅 (%)',x:D.dates,y:D.taiexReturn,xaxis:'x2',yaxis:'y3',marker:{color:D.taiexReturn.map(v=>v==null?'#555':v>=0?C.red:C.green)},showlegend:true});
- if($('newbars').checked)ts.push({type:'bar',name:'20日收盤創高－創低',x:D.dates,y:D.extra.highDiff,xaxis:'x2',yaxis:'y5',opacity:.36,marker:{color:D.extra.highDiff.map(v=>v>=0?'#f3c56a':'#87aaf6')},showlegend:true});
+ if($('newbars').checked)ts.push({type:'bar',name:'20日收盤創高－創低',x:D.dates,y:D.extra.highDiff,xaxis:'x3',yaxis:'y5',opacity:.80,marker:{color:D.extra.highDiff.map(v=>v>=0?'#f3c56a':'#87aaf6')},showlegend:true});
  const shapes=[],annotations=[];
- if($('heat').checked)shapes.push({type:'line',xref:'paper',yref:'y2',x0:0,x1:1,y0:65,y1:65,line:{color:'#ff626b',width:1,dash:'dot'}});
- if($('cold').checked)shapes.push({type:'line',xref:'paper',yref:'y2',x0:0,x1:1,y0:10,y1:10,line:{color:'#25cf83',width:1,dash:'dot'}});
+ if($('heat').checked)for(const [level,color,dash] of [[70,'#fb923c','dash'],[80,'#ff626b','solid']])shapes.push({type:'line',xref:'paper',yref:'y2',x0:0,x1:1,y0:level,y1:level,line:{color,width:1.3,dash}});
+ if($('cold').checked)for(const [level,color,dash] of [[20,'#4ade80','dash'],[10,'#15803d','solid']])shapes.push({type:'line',xref:'paper',yref:'y2',x0:0,x1:1,y0:level,y1:level,line:{color,width:1.3,dash}});
  if($('fib').checked){
   const fib=fibonacci();
   if(fib){
@@ -487,7 +489,21 @@ async function build(){
    }
   }
  }
- const layout={paper_bgcolor:C.bg,plot_bgcolor:C.bg,font:{color:C.fg,size:11},height:window.innerWidth<600?470:570,margin:{l:56,r:80,t:36,b:60},hovermode:'x unified',hoversubplots:'axis',spikedistance:-1,dragmode:'zoom',showlegend:true,legend:{orientation:'h',x:0,y:-.20,font:{size:11}},barmode:'overlay',xaxis:{domain:[0,1],anchor:'y',type:'date',range:[currentStart,currentEnd],showticklabels:false,showgrid:false,showspikes:true,spikemode:'across',spikesnap:'cursor',spikedash:'dot',rangebreaks:[{bounds:['sat','mon']}]},xaxis2:{domain:[0,1],anchor:'y3',type:'date',matches:'x',range:[currentStart,currentEnd],gridcolor:C.grid,showspikes:true,spikemode:'across',spikesnap:'cursor',spikedash:'dot',rangebreaks:[{bounds:['sat','mon']}],rangeslider:{visible:true,thickness:.06}},yaxis:{domain:[.29,1],side:'right',gridcolor:C.grid,title:{text:'台股點數',font:{size:11}}},yaxis2:{overlaying:'y',side:'left',range:[0,100],title:{text:'市場寬度 (%)',font:{size:11}},showgrid:false},yaxis3:{domain:[0,.19],gridcolor:C.grid,title:{text:'日漲跌 %',font:{size:10}}},yaxis4:{overlaying:'y',side:'right',position:.92,showgrid:false,title:{text:'美股累積報酬 %',font:{size:10}}},yaxis5:{overlaying:'y3',side:'right',showgrid:false,showticklabels:false},shapes,annotations,hoverlabel:{bgcolor:'#232934',font:{color:'#fafafa'}}};
+ const layout={
+ paper_bgcolor:C.bg,plot_bgcolor:C.bg,font:{color:C.fg,size:11},
+ height:window.innerWidth<600?630:740,margin:{l:56,r:80,t:36,b:85},
+ hovermode:'x unified',hoversubplots:'axis',spikedistance:-1,dragmode:'zoom',
+ showlegend:true,legend:{orientation:'h',x:0,y:-.16,font:{size:11}},barmode:'relative',
+ xaxis:{domain:[0,1],anchor:'y',type:'date',range:[currentStart,currentEnd],showticklabels:false,showgrid:false,showspikes:true,spikemode:'across',spikesnap:'cursor',spikedash:'dot',rangebreaks:[{bounds:['sat','mon']}],rangeslider:{visible:false}},
+ xaxis2:{domain:[0,1],anchor:'y3',type:'date',matches:'x',range:[currentStart,currentEnd],showticklabels:false,gridcolor:C.grid,showspikes:true,spikemode:'across',spikesnap:'cursor',spikedash:'dot',rangebreaks:[{bounds:['sat','mon']}],rangeslider:{visible:false}},
+ xaxis3:{domain:[0,1],anchor:'y5',type:'date',matches:'x',range:[currentStart,currentEnd],gridcolor:C.grid,showspikes:true,spikemode:'across',spikesnap:'cursor',spikedash:'dot',rangebreaks:[{bounds:['sat','mon']}],rangeslider:{visible:false}},
+ yaxis:{domain:[.45,1],side:'right',gridcolor:C.grid,title:{text:'台股點數',font:{size:11}}},
+ yaxis2:{overlaying:'y',side:'left',range:[0,100],title:{text:'市場寬度 (%)',font:{size:11}},showgrid:false},
+ yaxis3:{domain:[.25,.39],gridcolor:C.grid,zeroline:true,title:{text:'日漲跌 (%)',font:{size:10}}},
+ yaxis4:{overlaying:'y',side:'right',position:.92,showgrid:false,title:{text:'美股累積報酬 (%)',font:{size:10}}},
+ yaxis5:{domain:[0,.18],gridcolor:C.grid,zeroline:true,title:{text:'20日新高－新低 (檔)',font:{size:10}}},
+ shapes,annotations,hoverlabel:{bgcolor:'#232934',font:{color:'#fafafa'}}
+ };
  drawing=true;hideCrosshair();
  try{await Plotly.react(chart,ts,layout,{responsive:true,displaylogo:false,modeBarButtonsToRemove:['lasso2d','select2d']});}
  catch(err){console.error('Plotly render error',err);$('chart-hint').textContent='圖表繪製失敗：'+String(err);}

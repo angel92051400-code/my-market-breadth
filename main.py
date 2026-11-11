@@ -347,10 +347,10 @@ main{max-width:1480px;margin:0 auto;padding:22px 18px 38px} .header{display:flex
 </section>
 <div class="toolbar">
  <div class="controls"><label for="start">顯示區間</label><input type="date" id="start"/><span>—</span><input type="date" id="end"/><button type="button" id="reset">還原</button><button type="button" id="d1m">1 個月</button><button type="button" id="d3m">3 個月</button><button type="button" id="d6m">6 個月</button><button type="button" id="d1y">1 年</button><button type="button" id="dall">全部</button></div>
- <div class="controls"><label for="us-select">美股對照</label><select id="us-select"><option value="none">不顯示</option><option value="S&P 500">S&P 500（報酬%）</option><option value="Nasdaq-100">Nasdaq-100（報酬%）</option></select><label for="primary">台股寬度</label><select id="primary"><option value="640">前 640 大</option><option value="300">前 300 大</option><option value="all">全市場</option></select></div>
+ <div class="controls"><label for="us-select">美股對照</label><select id="us-select"><option value="none">不顯示</option><option value="S&P 500">S&P 500（報酬%）</option><option value="Nasdaq-100">Nasdaq-100（報酬%）</option></select><label for="primary">台股寬度</label><select id="primary"><option value="640">前 640 大</option><option value="300">前 300 大</option><option value="all">全市場</option></select><label for="taiex-scale">加權指數尺度</label><select id="taiex-scale"><option value="auto" selected>自動縮放</option><option value="30000">30,000 點起</option><option value="full">完整歷史範圍</option></select></div>
 </div>
 <div class="switches"><label><input type="checkbox" id="show300"/> 前 300 大</label><label><input type="checkbox" id="show640" checked/> 前 640 大</label><label><input type="checkbox" id="showall"/> 全市場</label><label><input type="checkbox" id="taiexbb"/> 大盤布林通道</label><label><input type="checkbox" id="breadthbb"/> 市場寬度布林通道</label><label><input type="checkbox" id="heat" checked/> 過熱 70/80%</label><label><input type="checkbox" id="cold" checked/> 過冷 10/20%</label><label><input type="checkbox" id="newbars" checked/> 新高－新低柱狀</label><label><input type="checkbox" id="fib"/> 費波那契回撤線</label><label class="fib-controls" for="fibdir">波段方向 <select id="fibdir"><option value="auto">自動（依高低點先後）</option><option value="up">上漲波段</option><option value="down">下跌波段</option></select></label></div>
-<div class="chart-wrap" id="chart-wrap"><div id="chart"></div><div id="crosshair" aria-hidden="true"></div></div><div class="hint" id="chart-hint">拖曳圖表可縮放、移動；滑鼠參考線會穿過主圖與兩個獨立副圖；日期切換時三圖同步。費波那契以所選日期區間的大盤最高／最低點自動計算，僅是可能價位，不是買賣保證。K 線與市場寬度共用日期軸，左右 Y 軸分別顯示股價點數及市場寬度百分比。美股線為指數累積報酬（非美股市場寬度），使用獨立 Y 軸。</div>
+<div class="chart-wrap" id="chart-wrap"><div id="chart"></div><div id="crosshair" aria-hidden="true"></div></div><div class="hint" id="chart-hint">拖曳圖表可縮放、移動；滑鼠參考線會穿過主圖與兩個獨立副圖；日期切換時三圖同步。費波那契以所選日期區間的大盤最高／最低點自動計算，僅是可能價位，不是買賣保證。K 線與市場寬度共用日期軸，左右 Y 軸分別顯示股價點數及市場寬度百分比。加權指數尺度可選自動縮放、30,000 點起或完整歷史範圍；若所選日期的股價低於 30,000 點，固定下限模式將裁切該部分 K 線。美股線為指數累積報酬（非美股市場寬度），使用獨立 Y 軸。</div>
 <div class="panel"><h2>門檻與歷史脈絡 <span class="meta" id="coverage"></span></h2><div class="metrics"><div class="metric"><div class="m-label">距過熱門檻（640 大 ≥70%）</div><div class="m-value" id="hotgap">--</div></div><div class="metric"><div class="m-label">距過冷門檻（640 大 ≤20%）</div><div class="m-value" id="coldgap">--</div></div><div class="metric"><div class="m-label">近 250 交易日過熱次數</div><div class="m-value" id="hotcount">--</div></div><div class="metric"><div class="m-label">近 250 交易日過冷次數</div><div class="m-value" id="coldcount">--</div></div></div>
 <div class="foot" id="details"></div></div>
 </main><script id="market-data" type="application/json">__DATA__</script>
@@ -399,6 +399,30 @@ function trailingDays(days){
   return clampDate(date.toISOString().slice(0,10));
 }
 function trace(x,y,name,color,axis='y2',extra={}){return {type:'scatter',mode:'lines',x,y,name,connectgaps:false,line:{color,width:2},yaxis:axis,...extra};}
+// 台股加權指數右側 Y 軸：依選取日期及模式計算顯示範圍。
+// 自動縮放只使用目前區間的有效 K 線最高／最低，並在顯示布林通道時涵蓋通道。
+// 完整歷史模式涵蓋全部資料，避免切換日期時放大價格變化。
+function taiexAxisRange(){
+  const mode=$('taiex-scale').value;
+  const all=mode==='full';
+  const highs=[],lows=[];
+  for(let i=0;i<n;i++){
+    if(!all&&(D.dates[i]<currentStart||D.dates[i]>currentEnd))continue;
+    const h=D.candles.high[i],l=D.candles.low[i];
+    if(Number.isFinite(h))highs.push(h);
+    if(Number.isFinite(l))lows.push(l);
+    if($('taiexbb').checked){
+      const upper=D.taiexBB.upper[i],lower=D.taiexBB.lower[i];
+      if(Number.isFinite(upper))highs.push(upper);
+      if(Number.isFinite(lower))lows.push(lower);
+    }
+  }
+  if(!highs.length||!lows.length)return null;
+  const highest=Math.max(...highs),lowest=Math.min(...lows);
+  const pad=Math.max((highest-lowest)*.06,100);
+  if(mode==='30000')return [30000,Math.max(30000+500,highest+pad)];
+  return [Math.max(0,lowest-pad),highest+pad];
+}
 function fibonacci(){
   const pairs=[];
   for(let i=0;i<n;i++){
@@ -449,9 +473,9 @@ function syncZoom(evt){
   if(a!=null&&b!=null){
     const date=d=>String(d).slice(0,10);
     const aa=clampDate(date(a)),bb=clampDate(date(b));
-    if(aa<=bb){currentStart=aa;currentEnd=bb;uiRange();}
+    if(aa<=bb&&(aa!==currentStart||bb!==currentEnd)){currentStart=aa;currentEnd=bb;uiRange();build();}
   } else if(evt['xaxis.autorange']===true||evt['xaxis2.autorange']===true||evt['xaxis3.autorange']===true){
-    currentStart=D.dates[0];currentEnd=D.dates[last];uiRange();
+    if(currentStart!==D.dates[0]||currentEnd!==D.dates[last]){currentStart=D.dates[0];currentEnd=D.dates[last];uiRange();build();}
   }
 }
 async function build(){
@@ -489,6 +513,7 @@ async function build(){
    }
   }
  }
+ const taiexRange=taiexAxisRange();
  const layout={
  paper_bgcolor:C.bg,plot_bgcolor:C.bg,font:{color:C.fg,size:11},
  height:window.innerWidth<600?630:740,margin:{l:56,r:80,t:36,b:85},
@@ -497,7 +522,7 @@ async function build(){
  xaxis:{domain:[0,1],anchor:'y',type:'date',range:[currentStart,currentEnd],showticklabels:false,showgrid:false,showspikes:true,spikemode:'across',spikesnap:'cursor',spikedash:'dot',rangebreaks:[{bounds:['sat','mon']}],rangeslider:{visible:false}},
  xaxis2:{domain:[0,1],anchor:'y3',type:'date',matches:'x',range:[currentStart,currentEnd],showticklabels:false,gridcolor:C.grid,showspikes:true,spikemode:'across',spikesnap:'cursor',spikedash:'dot',rangebreaks:[{bounds:['sat','mon']}],rangeslider:{visible:false}},
  xaxis3:{domain:[0,1],anchor:'y5',type:'date',matches:'x',range:[currentStart,currentEnd],gridcolor:C.grid,showspikes:true,spikemode:'across',spikesnap:'cursor',spikedash:'dot',rangebreaks:[{bounds:['sat','mon']}],rangeslider:{visible:false}},
- yaxis:{domain:[.45,1],side:'right',gridcolor:C.grid,title:{text:'台股點數',font:{size:11}}},
+ yaxis:{domain:[.45,1],side:'right',gridcolor:C.grid,range:taiexRange||undefined,autorange:!taiexRange,title:{text:'台股點數',font:{size:11}}},
  yaxis2:{overlaying:'y',side:'left',range:[0,100],title:{text:'市場寬度 (%)',font:{size:11}},showgrid:false},
  yaxis3:{domain:[.25,.39],gridcolor:C.grid,zeroline:true,title:{text:'日漲跌 (%)',font:{size:10}}},
  yaxis4:{overlaying:'y',side:'right',position:.92,showgrid:false,title:{text:'美股累積報酬 (%)',font:{size:10}}},
@@ -515,7 +540,7 @@ $('end').addEventListener('change',()=>setRange($('start').value||D.dates[0],$('
 $('reset').onclick=()=>setRange(D.dates[Math.max(0,last-99)],D.dates[last]);
 for(const [btn,days] of [['d1m',30],['d3m',90],['d6m',180],['d1y',365]])$(btn).onclick=()=>setRange(trailingDays(days),D.dates[last],btn);
 $('dall').onclick=()=>setRange(D.dates[0],D.dates[last],'dall');
-for(const id of ['show300','show640','showall','taiexbb','breadthbb','heat','cold','newbars','us-select','primary','fib','fibdir'])$(id).addEventListener('change',build);
+for(const id of ['show300','show640','showall','taiexbb','breadthbb','heat','cold','newbars','us-select','primary','taiex-scale','fib','fibdir'])$(id).addEventListener('change',build);
 if(!pct('all')){$('showall').disabled=true;$('primary').querySelector('[value="all"]').disabled=true;}
 for(const k of ['S&P 500','Nasdaq-100'])if(!D.us[k]){const o=$('us-select').querySelector(`[value="${k}"]`);if(o)o.disabled=true;}
 // Never attach repeated listeners inside build(): preserves handlers across Plotly.react.

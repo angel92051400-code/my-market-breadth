@@ -83,6 +83,19 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Require valid historical breadth on all 60 target sessions
+        if: steps.publish.outcome == 'success'
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report=json.loads(Path("data/repair_2025_report.json").read_text(encoding="utf-8"))
+          pending=report.get("still_incomplete", [])
+          print(f"2025 repaired {report.get('official_days_retrieved', 0)} days; MA60 below 95%: {len(pending)}")
+          if pending:
+              raise SystemExit("修復未完成：逐日覆蓋率未達 95%，已提交可續補資料與診斷報告")
+          PY
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:

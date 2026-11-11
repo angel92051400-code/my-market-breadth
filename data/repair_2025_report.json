@@ -2,256 +2,612 @@
   "target_start": "2025-08-01",
   "target_end": "2025-10-29",
   "target_sessions": 60,
-  "days_repaired": 1,
-  "min_60ma_coverage": 0.7375,
+  "days_repaired": 119,
+  "failed_before": 60,
+  "warmup_start": "2025-05-09",
+  "official_days_retrieved": 119,
+  "official_sources": {
+    "TWSE": "MI_INDEX",
+    "TPEx": "afterTrading/otc?type=EW"
+  },
+  "min_60ma_coverage": 0.95312,
   "threshold": 0.95,
   "per_day": [
     {
-      "date": "2025-08-01",
+      "date": "2025-05-09",
+      "twse_count": 1040,
+      "tpex_count": 830
+    },
+    {
+      "date": "2025-05-12",
+      "twse_count": 1043,
+      "tpex_count": 838
+    },
+    {
+      "date": "2025-05-13",
+      "twse_count": 1035,
+      "tpex_count": 839
+    },
+    {
+      "date": "2025-05-14",
+      "twse_count": 1042,
+      "tpex_count": 838
+    },
+    {
+      "date": "2025-05-15",
+      "twse_count": 1037,
+      "tpex_count": 834
+    },
+    {
+      "date": "2025-05-16",
+      "twse_count": 1041,
+      "tpex_count": 833
+    },
+    {
+      "date": "2025-05-19",
+      "twse_count": 1040,
+      "tpex_count": 829
+    },
+    {
+      "date": "2025-05-20",
+      "twse_count": 1041,
+      "tpex_count": 832
+    },
+    {
+      "date": "2025-05-21",
+      "twse_count": 1043,
+      "tpex_count": 836
+    },
+    {
+      "date": "2025-05-22",
+      "twse_count": 1038,
+      "tpex_count": 828
+    },
+    {
+      "date": "2025-05-23",
+      "twse_count": 1038,
+      "tpex_count": 830
+    },
+    {
+      "date": "2025-05-26",
+      "twse_count": 1043,
+      "tpex_count": 825
+    },
+    {
+      "date": "2025-05-27",
+      "twse_count": 1044,
+      "tpex_count": 832
+    },
+    {
+      "date": "2025-05-28",
+      "twse_count": 1038,
+      "tpex_count": 831
+    },
+    {
+      "date": "2025-05-29",
+      "twse_count": 1040,
+      "tpex_count": 829
+    },
+    {
+      "date": "2025-06-02",
+      "twse_count": 1039,
+      "tpex_count": 822
+    },
+    {
+      "date": "2025-06-03",
+      "twse_count": 1044,
+      "tpex_count": 828
+    },
+    {
+      "date": "2025-06-04",
+      "twse_count": 1043,
+      "tpex_count": 830
+    },
+    {
+      "date": "2025-06-05",
+      "twse_count": 1040,
+      "tpex_count": 828
+    },
+    {
+      "date": "2025-06-06",
+      "twse_count": 1038,
+      "tpex_count": 835
+    },
+    {
+      "date": "2025-06-09",
+      "twse_count": 1034,
+      "tpex_count": 830
+    },
+    {
+      "date": "2025-06-10",
+      "twse_count": 1045,
+      "tpex_count": 836
+    },
+    {
+      "date": "2025-06-11",
+      "twse_count": 1045,
+      "tpex_count": 841
+    },
+    {
+      "date": "2025-06-12",
+      "twse_count": 1040,
+      "tpex_count": 837
+    },
+    {
+      "date": "2025-06-13",
+      "twse_count": 1043,
+      "tpex_count": 831
+    },
+    {
+      "date": "2025-06-16",
+      "twse_count": 1046,
+      "tpex_count": 831
+    },
+    {
+      "date": "2025-06-17",
+      "twse_count": 1046,
+      "tpex_count": 832
+    },
+    {
+      "date": "2025-06-18",
+      "twse_count": 1047,
+      "tpex_count": 835
+    },
+    {
+      "date": "2025-06-19",
+      "twse_count": 1046,
+      "tpex_count": 834
+    },
+    {
+      "date": "2025-06-20",
+      "twse_count": 1045,
+      "tpex_count": 834
+    },
+    {
+      "date": "2025-06-23",
+      "twse_count": 1046,
+      "tpex_count": 824
+    },
+    {
+      "date": "2025-06-24",
       "twse_count": 1048,
-      "tpex_count": 0
-    }
-  ],
-  "still_incomplete": [
+      "tpex_count": 838
+    },
+    {
+      "date": "2025-06-25",
+      "twse_count": 1040,
+      "tpex_count": 836
+    },
+    {
+      "date": "2025-06-26",
+      "twse_count": 1048,
+      "tpex_count": 830
+    },
+    {
+      "date": "2025-06-27",
+      "twse_count": 1048,
+      "tpex_count": 826
+    },
+    {
+      "date": "2025-06-30",
+      "twse_count": 1048,
+      "tpex_count": 822
+    },
+    {
+      "date": "2025-07-01",
+      "twse_count": 1049,
+      "tpex_count": 827
+    },
+    {
+      "date": "2025-07-02",
+      "twse_count": 1038,
+      "tpex_count": 831
+    },
+    {
+      "date": "2025-07-03",
+      "twse_count": 1043,
+      "tpex_count": 837
+    },
+    {
+      "date": "2025-07-04",
+      "twse_count": 1048,
+      "tpex_count": 827
+    },
+    {
+      "date": "2025-07-07",
+      "twse_count": 1035,
+      "tpex_count": 819
+    },
+    {
+      "date": "2025-07-08",
+      "twse_count": 1044,
+      "tpex_count": 816
+    },
+    {
+      "date": "2025-07-09",
+      "twse_count": 1037,
+      "tpex_count": 823
+    },
+    {
+      "date": "2025-07-10",
+      "twse_count": 1038,
+      "tpex_count": 828
+    },
+    {
+      "date": "2025-07-11",
+      "twse_count": 1042,
+      "tpex_count": 830
+    },
+    {
+      "date": "2025-07-14",
+      "twse_count": 1037,
+      "tpex_count": 817
+    },
+    {
+      "date": "2025-07-15",
+      "twse_count": 1043,
+      "tpex_count": 831
+    },
+    {
+      "date": "2025-07-16",
+      "twse_count": 1037,
+      "tpex_count": 838
+    },
+    {
+      "date": "2025-07-17",
+      "twse_count": 1042,
+      "tpex_count": 839
+    },
+    {
+      "date": "2025-07-18",
+      "twse_count": 1044,
+      "tpex_count": 835
+    },
+    {
+      "date": "2025-07-21",
+      "twse_count": 1041,
+      "tpex_count": 830
+    },
+    {
+      "date": "2025-07-22",
+      "twse_count": 1045,
+      "tpex_count": 830
+    },
+    {
+      "date": "2025-07-23",
+      "twse_count": 1045,
+      "tpex_count": 834
+    },
+    {
+      "date": "2025-07-24",
+      "twse_count": 1046,
+      "tpex_count": 830
+    },
+    {
+      "date": "2025-07-25",
+      "twse_count": 1042,
+      "tpex_count": 833
+    },
+    {
+      "date": "2025-07-28",
+      "twse_count": 1045,
+      "tpex_count": 824
+    },
+    {
+      "date": "2025-07-29",
+      "twse_count": 1047,
+      "tpex_count": 824
+    },
+    {
+      "date": "2025-07-30",
+      "twse_count": 1038,
+      "tpex_count": 824
+    },
+    {
+      "date": "2025-07-31",
+      "twse_count": 1044,
+      "tpex_count": 822
+    },
     {
       "date": "2025-08-01",
-      "eligible": 472
+      "twse_count": 1048,
+      "tpex_count": 829
     },
     {
       "date": "2025-08-04",
-      "eligible": 472
+      "twse_count": 1042,
+      "tpex_count": 827
     },
     {
       "date": "2025-08-05",
-      "eligible": 472
+      "twse_count": 1046,
+      "tpex_count": 838
     },
     {
       "date": "2025-08-06",
-      "eligible": 472
+      "twse_count": 1050,
+      "tpex_count": 833
     },
     {
       "date": "2025-08-07",
-      "eligible": 472
+      "twse_count": 1050,
+      "tpex_count": 836
     },
     {
       "date": "2025-08-08",
-      "eligible": 472
+      "twse_count": 1049,
+      "tpex_count": 834
     },
     {
       "date": "2025-08-11",
-      "eligible": 472
+      "twse_count": 1045,
+      "tpex_count": 835
     },
     {
       "date": "2025-08-12",
-      "eligible": 472
+      "twse_count": 1043,
+      "tpex_count": 840
     },
     {
       "date": "2025-08-13",
-      "eligible": 472
+      "twse_count": 1046,
+      "tpex_count": 841
     },
     {
       "date": "2025-08-14",
-      "eligible": 472
+      "twse_count": 1047,
+      "tpex_count": 843
     },
     {
       "date": "2025-08-15",
-      "eligible": 472
+      "twse_count": 1047,
+      "tpex_count": 845
     },
     {
       "date": "2025-08-18",
-      "eligible": 472
+      "twse_count": 1049,
+      "tpex_count": 839
     },
     {
       "date": "2025-08-19",
-      "eligible": 472
+      "twse_count": 1049,
+      "tpex_count": 843
     },
     {
       "date": "2025-08-20",
-      "eligible": 472
+      "twse_count": 1049,
+      "tpex_count": 834
     },
     {
       "date": "2025-08-21",
-      "eligible": 472
+      "twse_count": 1050,
+      "tpex_count": 846
     },
     {
       "date": "2025-08-22",
-      "eligible": 472
+      "twse_count": 1046,
+      "tpex_count": 836
     },
     {
       "date": "2025-08-25",
-      "eligible": 472
+      "twse_count": 1049,
+      "tpex_count": 847
     },
     {
       "date": "2025-08-26",
-      "eligible": 472
+      "twse_count": 1049,
+      "tpex_count": 846
     },
     {
       "date": "2025-08-27",
-      "eligible": 472
+      "twse_count": 1051,
+      "tpex_count": 845
     },
     {
       "date": "2025-08-28",
-      "eligible": 472
+      "twse_count": 1048,
+      "tpex_count": 843
     },
     {
       "date": "2025-08-29",
-      "eligible": 472
+      "twse_count": 1048,
+      "tpex_count": 839
     },
     {
       "date": "2025-09-01",
-      "eligible": 472
+      "twse_count": 1046,
+      "tpex_count": 844
     },
     {
       "date": "2025-09-02",
-      "eligible": 472
+      "twse_count": 1048,
+      "tpex_count": 832
     },
     {
       "date": "2025-09-03",
-      "eligible": 472
+      "twse_count": 1050,
+      "tpex_count": 841
     },
     {
       "date": "2025-09-04",
-      "eligible": 473
+      "twse_count": 1047,
+      "tpex_count": 840
     },
     {
       "date": "2025-09-05",
-      "eligible": 473
+      "twse_count": 1047,
+      "tpex_count": 838
     },
     {
       "date": "2025-09-08",
-      "eligible": 473
+      "twse_count": 1048,
+      "tpex_count": 839
     },
     {
       "date": "2025-09-09",
-      "eligible": 473
+      "twse_count": 1053,
+      "tpex_count": 839
     },
     {
       "date": "2025-09-10",
-      "eligible": 473
+      "twse_count": 1052,
+      "tpex_count": 840
     },
     {
       "date": "2025-09-11",
-      "eligible": 473
+      "twse_count": 1052,
+      "tpex_count": 842
     },
     {
       "date": "2025-09-12",
-      "eligible": 473
+      "twse_count": 1052,
+      "tpex_count": 846
     },
     {
       "date": "2025-09-15",
-      "eligible": 473
+      "twse_count": 1052,
+      "tpex_count": 834
     },
     {
       "date": "2025-09-16",
-      "eligible": 473
+      "twse_count": 1055,
+      "tpex_count": 834
     },
     {
       "date": "2025-09-17",
-      "eligible": 473
+      "twse_count": 1056,
+      "tpex_count": 836
     },
     {
       "date": "2025-09-18",
-      "eligible": 473
+      "twse_count": 1054,
+      "tpex_count": 837
     },
     {
       "date": "2025-09-19",
-      "eligible": 473
+      "twse_count": 1055,
+      "tpex_count": 839
     },
     {
       "date": "2025-09-22",
-      "eligible": 473
+      "twse_count": 1048,
+      "tpex_count": 842
     },
     {
       "date": "2025-09-23",
-      "eligible": 473
+      "twse_count": 1054,
+      "tpex_count": 845
     },
     {
       "date": "2025-09-24",
-      "eligible": 473
+      "twse_count": 1054,
+      "tpex_count": 832
     },
     {
       "date": "2025-09-25",
-      "eligible": 473
+      "twse_count": 1045,
+      "tpex_count": 831
     },
     {
       "date": "2025-09-26",
-      "eligible": 473
+      "twse_count": 1050,
+      "tpex_count": 834
     },
     {
       "date": "2025-09-30",
-      "eligible": 473
+      "twse_count": 1046,
+      "tpex_count": 834
     },
     {
       "date": "2025-10-01",
-      "eligible": 473
+      "twse_count": 1049,
+      "tpex_count": 837
     },
     {
       "date": "2025-10-02",
-      "eligible": 473
+      "twse_count": 1047,
+      "tpex_count": 836
     },
     {
       "date": "2025-10-03",
-      "eligible": 473
+      "twse_count": 1050,
+      "tpex_count": 839
     },
     {
       "date": "2025-10-07",
-      "eligible": 473
+      "twse_count": 1056,
+      "tpex_count": 841
     },
     {
       "date": "2025-10-08",
-      "eligible": 473
+      "twse_count": 1052,
+      "tpex_count": 835
     },
     {
       "date": "2025-10-09",
-      "eligible": 473
+      "twse_count": 1054,
+      "tpex_count": 843
     },
     {
       "date": "2025-10-13",
-      "eligible": 473
+      "twse_count": 1056,
+      "tpex_count": 833
     },
     {
       "date": "2025-10-14",
-      "eligible": 473
+      "twse_count": 1055,
+      "tpex_count": 838
     },
     {
       "date": "2025-10-15",
-      "eligible": 473
+      "twse_count": 1056,
+      "tpex_count": 834
     },
     {
       "date": "2025-10-16",
-      "eligible": 473
+      "twse_count": 1057,
+      "tpex_count": 843
     },
     {
       "date": "2025-10-17",
-      "eligible": 473
+      "twse_count": 1053,
+      "tpex_count": 832
     },
     {
       "date": "2025-10-20",
-      "eligible": 473
+      "twse_count": 1055,
+      "tpex_count": 840
     },
     {
       "date": "2025-10-21",
-      "eligible": 473
+      "twse_count": 1056,
+      "tpex_count": 845
     },
     {
       "date": "2025-10-22",
-      "eligible": 473
+      "twse_count": 1055,
+      "tpex_count": 834
     },
     {
       "date": "2025-10-23",
-      "eligible": 473
+      "twse_count": 1056,
+      "tpex_count": 837
     },
     {
       "date": "2025-10-27",
-      "eligible": 473
+      "twse_count": 1056,
+      "tpex_count": 841
     },
     {
       "date": "2025-10-28",
-      "eligible": 473
+      "twse_count": 1056,
+      "tpex_count": 845
     },
     {
       "date": "2025-10-29",
-      "eligible": 473
+      "twse_count": 1055,
+      "tpex_count": 844
     }
-  ]
+  ],
+  "still_incomplete": []
 }

@@ -19,6 +19,8 @@ import pandas as pd
 import requests
 import yfinance as yf
 
+from market_cache import load_stock_closes, load_taiex, persist, validate_and_mask_breadth
+
 ROOT = Path(__file__).resolve().parent
 TOP_FILE = ROOT / "tickers.csv"
 FULL_FILE = ROOT / "all_tickers.csv"
@@ -130,11 +132,11 @@ def price_panel(data, column, symbols):
     return result.sort_index()
 
 
-def download_prices(symbols):
+def download_prices(symbols, period=PERIOD):
     frames = []
     for i in range(0, len(symbols), BATCH_SIZE):
         batch = symbols[i:i+BATCH_SIZE]
-        d = yf_download(batch)
+        d = yf_download(batch, period=period)
         p = price_panel(d, "Close", batch)
         if not p.empty:
             frames.append(p)
@@ -148,8 +150,8 @@ def download_prices(symbols):
     return result.apply(pd.to_numeric, errors="coerce").sort_index()
 
 
-def extract_ohlc(symbol):
-    data = yf_download([symbol])
+def extract_ohlc(symbol, period=PERIOD):
+    data = yf_download([symbol], period=period)
     if data.empty:
         raise RuntimeError(f"{symbol} 指數報價下載失敗")
     fields = {}
@@ -208,8 +210,9 @@ def run_length(flag):
 def main():
     top = load_top()
     all_request, official, source_label = get_universe(top)
-    close = download_prices(all_request)
-    taiex = extract_ohlc("^TWII")
+    full_refresh = os.getenv("MARKET_FULL_REFRESH", "0") == "1"
+    close = load_stock_closes(all_request, download_prices, full_refresh=full_refresh)
+    taiex = load_taiex(lambda period: extract_ohlc("^TWII", period=period), full_refresh=full_refresh)
     us = {}
     for symbol, label in (("^GSPC", "S&P 500"), ("^NDX", "Nasdaq-100")):
         try:
@@ -218,6 +221,13 @@ def main():
             print(f"⚠️ 無法取得美股 {label}：{exc}", flush=True)
 
     idx = taiex.index.intersection(close.index)
+    expected = os.getenv("EXPECT_TRADE_DATE", "").strip()
+    if expected and (idx.empty or idx[-1].strftime("%Y-%m-%d") != expected):
+        raise RuntimeError(
+            f"應有台股資料日 {expected}，但 Yahoo 最新共同交易日為 "
+            f"{idx[-1].strftime('%Y-%m-%d') if len(idx) else '無資料'}。"
+            " 可能尚未更新或臨時休市，不覆蓋網站與歷史紀錄。"
+        )
     if len(idx) < 80:
         raise RuntimeError(f"台股與成分股交集只有 {len(idx)} 日，資料不足")
     taiex = taiex.reindex(idx)
@@ -228,6 +238,9 @@ def main():
         if not symbols:
             continue
         b, n, d, prices = calc_breadth(close, symbols, idx)
+        b, masked_count = validate_and_mask_breadth(b, d, len(symbols), coverage=.95)
+        if masked_count:
+            print(f"{key} 市場寬度遮罩：{masked_count} 個資料品質不足交易日", flush=True)
         # Both sample coverage and latest coverage are disclosed.
         latest_count = int(d.iloc[-1])
         series = b.rolling(20, min_periods=20)
@@ -311,10 +324,15 @@ def main():
     else:
         payload["allStatus"] = "沒有全市場資料"
 
+    # Validate the current day's top-640 coverage before publishing or caching.
+    latest_coverage = int(breadth["640"]["valid"].iloc[-1]) / len(top)
+    if latest_coverage < .95:
+        raise RuntimeError(f"最後交易日有效率 {latest_coverage:.1%} < 95%，不發布新圖表")
     html = make_html(payload)
     temp = OUTPUT.with_suffix(".tmp")
     temp.write_text(html, encoding="utf-8")
     os.replace(temp, OUTPUT)
+    persist(close, taiex)
     print(f"✅ {OUTPUT}：台股資料日 {payload['snapshotDate']}，前640有效 {breadth['640']['latest_valid']}/{len(top)}；全市場 {payload['allStatus']}")
     if os.getenv("GITHUB_STEP_SUMMARY"):
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:

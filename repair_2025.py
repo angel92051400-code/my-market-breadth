@@ -231,9 +231,8 @@ def main():
     # Persist only sourced prices; incomplete breadth remains masked by main.py.
     _write_cache(CLOSE_PATH, merged)
     if report["still_incomplete"]:
-        raise RuntimeError(
-            f"歷史市場寬度修復尚未完成：仍有 {len(report[\'still_incomplete\'])} 日 MA60 覆蓋率不足 95%；已保存來源價格及逐日報告，禁止標示為成功"
-        )
+        print(f"⚠️ 修復部分完成：仍有 {len(report['still_incomplete'])} 日不足 95%；"
+              " 稍後由 GitHub 工作流程明確判定失敗並保留來源與診斷。", flush=True)
     else:
         print("✅ 2025 年歷史價格已通過 95% 的 60MA 驗證並儲存", flush=True)
 

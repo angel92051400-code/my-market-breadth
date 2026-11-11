@@ -1,8 +1,8 @@
 """Repair 2025-08..2025-10 missing daily closes with historical TWSE/TPEx quotations.
 
 No interpolation, no silent price replacement, no cross-date ffill.
-The repaired archive is persisted only if ≥95% of current 640 symbols have
-valid 60-session histories on every targeted date.
+Repaired prices are persisted with explicit coverage diagnostics.
+A successfully completed workflow must meet ≥95% valid MA60 on all target dates.
 """
 from __future__ import annotations
 
@@ -91,8 +91,9 @@ def parse_market(payload, day, suffix):
         close = number(row[close_col])
         if math.isfinite(close):
             values[code + suffix] = close
-    if len(values) < 100:
-        raise ValueError(f"官方 {day} {suffix} 股票報價僅 {len(values)} 筆")
+    minimum = 600 if suffix == ".TW" else 100
+    if len(values) < minimum:
+        raise ValueError(f"官方 {day} {suffix} 股票報價僅 {len(values)} 筆，低於最低 {minimum} 筆")
     return values
 
 
@@ -121,7 +122,7 @@ def fetch_day(session, day):
         otc = fetch_json(
             session,
             "https://www.tpex.org.tw/www/zh-tw/afterTrading/otc",
-            {"date": day.replace("-", "/"), "response": "json"},
+            {"date": day.replace("-", "/"), "type": "EW", "response": "json"},
         )
         over_the_counter = parse_market(otc, day, ".TWO")
     except Exception as exc:
@@ -159,12 +160,22 @@ def main():
     if len(targeted) < 40:
         raise RuntimeError(f"目標交易日期太少：{len(targeted)}")
 
-    # Two-year baseline sometimes has a whole interval with one valid ticker.
-    # Only request official market snapshots on the dates that need fixing.
-    existing = existing.reindex(index=existing.index.union(targeted).sort_values())
-    count_before = existing.reindex(columns=top).notna().sum(axis=1)
-    needs_fix = targeted[count_before.reindex(targeted, fill_value=0) < 608]
-    print(f"目標 {len(targeted)} 交易日，需要補資料 {len(needs_fix)} 日", flush=True)
+    # Historical MA60 depends on the *previous 59 trading sessions*, not
+    # merely on whether a day's raw close is present. The earlier version only
+    # fetched one date even though all 60 target dates failed MA60 coverage.
+    first_target_pos = dates.get_loc(targeted[0])
+    warmup_start_pos = max(0, first_target_pos - 59)
+    repair_dates = dates[warmup_start_pos: dates.get_loc(targeted[-1]) + 1]
+    existing = existing.reindex(index=existing.index.union(repair_dates).sort_values())
+    _, _, initial_ma60_valid, _ = calc_breadth(existing, top, dates)
+    failed_before = targeted[initial_ma60_valid.reindex(targeted, fill_value=0) < math.ceil(len(top)*MIN_COVERAGE)]
+    # Re-fetch complete official snapshots over the warmup and target interval.
+    # A present quote can still hide a gap on an earlier MA60 lookback date.
+    needs_fix = repair_dates
+    print(f"目標 {len(targeted)} 交易日，原始 MA60 未達標 {len(failed_before)} 日；"
+          f"連同前 59 個交易日需要校驗 {len(needs_fix)} 日", flush=True)
+    if not len(failed_before):
+        print("所有目標日已達 95% 有效率：只輸出診斷報告", flush=True)
 
     session = requests.Session()
     session.headers.update({
@@ -185,7 +196,7 @@ def main():
         print(f"{i}/{len(needs_fix)} {day} TWSE {report['twse_count']} TPEx {report['tpex_count']}", flush=True)
     # Build in one operation: repeated scalar assignment creates a fragmented
     # and extremely slow frame for ~2,000 stocks x 60 trading days.
-    new = pd.DataFrame.from_dict(sourced, orient="index").reindex(targeted)
+    new = pd.DataFrame.from_dict(sourced, orient="index").reindex(repair_dates)
 
     # Official raw prices are only used for missing Yahoo values, never to
     # overwrite existing quotations with a different adjustment convention.
@@ -200,6 +211,10 @@ def main():
         "target_end": args.end,
         "target_sessions": int(len(targeted)),
         "days_repaired": int(len(needs_fix)),
+        "failed_before": int(len(failed_before)),
+        "warmup_start": repair_dates[0].strftime("%Y-%m-%d"),
+        "official_days_retrieved": int(sum(bool(row) for row in sourced.values())),
+        "official_sources": {"TWSE": "MI_INDEX", "TPEx": "afterTrading/otc?type=EW"},
         "min_60ma_coverage": round(minimum, 5),
         "threshold": MIN_COVERAGE,
         "per_day": reports,
@@ -216,7 +231,9 @@ def main():
     # Persist only sourced prices; incomplete breadth remains masked by main.py.
     _write_cache(CLOSE_PATH, merged)
     if report["still_incomplete"]:
-        print("⚠️ 部分日期仍不足 95%；已保存有來源的補價，網站將維持缺值遮罩；下次可續補。", flush=True)
+        raise RuntimeError(
+            f"歷史市場寬度修復尚未完成：仍有 {len(report[\'still_incomplete\'])} 日 MA60 覆蓋率不足 95%；已保存來源價格及逐日報告，禁止標示為成功"
+        )
     else:
         print("✅ 2025 年歷史價格已通過 95% 的 60MA 驗證並儲存", flush=True)
 

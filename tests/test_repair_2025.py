@@ -11,11 +11,11 @@ class RepairParseTests(unittest.TestCase):
             "tables": [
                 {"fields": ["指數", "收盤指數"], "data": [["TAIEX", "22,000"]]},
                 {"fields": ["證券代號", "證券名稱", "收盤價"], "data":
-                 [[str(n), "stock", f"{100 + n/1000:.2f}"] for n in range(1100, 1250)]}
+                 [[str(n), "stock", f"{100 + n/1000:.2f}"] for n in range(1100, 1750)]}
             ],
         }
         prices = parse_market(body, "2025-08-01", ".TW")
-        self.assertEqual(len(prices), 150)
+        self.assertEqual(len(prices), 650)
         self.assertIn("1101.TW", prices)
 
     def test_tpex_price_table(self):

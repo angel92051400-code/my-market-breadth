@@ -176,14 +176,16 @@ def main():
         total=2, backoff_factor=2, status_forcelist=(429, 500, 502, 503, 504)
     )))
     reports = []
-    new = pd.DataFrame(index=targeted)
+    sourced = {}
     for i, timestamp in enumerate(needs_fix, 1):
         day = timestamp.strftime("%Y-%m-%d")
         quotes, report = fetch_day(session, day)
         reports.append(report)
-        for symbol, price in quotes.items():
-            new.loc[timestamp, symbol] = price
+        sourced[timestamp] = quotes
         print(f"{i}/{len(needs_fix)} {day} TWSE {report['twse_count']} TPEx {report['tpex_count']}", flush=True)
+    # Build in one operation: repeated scalar assignment creates a fragmented
+    # and extremely slow frame for ~2,000 stocks x 60 trading days.
+    new = pd.DataFrame.from_dict(sourced, orient="index").reindex(targeted)
 
     # Official raw prices are only used for missing Yahoo values, never to
     # overwrite existing quotations with a different adjustment convention.

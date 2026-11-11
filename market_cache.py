@@ -57,6 +57,8 @@ def _write_cache(path: Path, frame: pd.DataFrame) -> None:
 
 def load_stock_closes(symbols: list[str], downloader, *, full_refresh=False) -> pd.DataFrame:
     existing = read_cache(CLOSE_PATH)
+    # Newly included tickers need 60+ trading sessions, not just the 1mo incremental window.
+    missing_history = [symbol for symbol in symbols if symbol not in existing.columns]
     if existing.empty or full_refresh:
         print("歷史股價：首次建檔／定期完整校驗，下載 2y", flush=True)
         fresh = downloader(symbols, period="2y")
@@ -65,10 +67,9 @@ def load_stock_closes(symbols: list[str], downloader, *, full_refresh=False) -> 
         fresh = downloader(symbols, period="1mo")
 
     merged = merge_prices(existing, fresh)
-    new_symbols = [s for s in symbols if s not in merged.columns]
-    if new_symbols:
-        print(f"新上市或新入選成分股 {len(new_symbols)} 檔：補抓 2y", flush=True)
-        merged = merge_prices(merged, downloader(new_symbols, period="2y"))
+    if missing_history and not existing.empty and not full_refresh:
+        print(f"新上市或新入選成分股 {len(missing_history)} 檔：補抓 2y", flush=True)
+        merged = merge_prices(merged, downloader(missing_history, period="2y"))
 
     merged = merged.reindex(columns=symbols)
     if len(merged) < MIN_HISTORY_ROWS:

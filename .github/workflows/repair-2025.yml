@@ -1,0 +1,91 @@
+name: Repair 2025 Market Breadth History
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - repair_2025.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: market-breadth-update
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Repair missing Aug-Oct 2025 quotes from official exchange archives
+        id: repair
+        run: python repair_2025.py
+
+      - name: Regenerate dashboard from verified cache
+        id: dashboard
+        if: steps.repair.outcome == 'success'
+        run: python main.py
+
+      - name: Commit repaired quotes and dashboard
+        id: publish
+        if: steps.dashboard.outcome == 'success'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html data/stock_closes.csv.gz data/taiex_ohlc.csv.gz data/repair_2025_report.json
+          if git diff --cached --quiet; then
+            echo "沒有新資料"
+          else
+            git commit -m "Repair Aug-Oct 2025 market breadth using official quotes"
+            git pull --rebase origin main
+            git push
+          fi
+
+      - name: Repair diagnostics
+        if: always()
+        env:
+          REPAIR: ${{ steps.repair.outcome }}
+          DASHBOARD: ${{ steps.dashboard.outcome }}
+          PUBLISH: ${{ steps.publish.outcome }}
+        shell: bash
+        run: |
+          {
+            echo "## 2025 年歷史市場寬度補價"
+            echo "| 階段 | 狀態 |"
+            echo "|---|---|"
+            echo "| 官方歷史報價補洞 | $REPAIR |"
+            echo "| 重新計算市場寬度 | $DASHBOARD |"
+            echo "| 提交資料與新版網站 | $PUBLISH |"
+            echo ""
+            if [[ -f data/repair_2025_report.json ]]; then
+              python - <<'PY'
+          import json
+          with open('data/repair_2025_report.json', encoding='utf-8') as f:
+              d=json.load(f)
+          print('日期：', d['target_start'], '至', d['target_end'])
+          print('最低 60MA 覆蓋率：', d['min_60ma_coverage'])
+          print('仍不合格：', len(d['still_incomplete']), '日')
+          PY
+            else
+              echo "未生成補價報告，請查看報價請求錯誤。"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: repair-2025-diagnostics
+          path: data/repair_2025_report.json
+          if-no-files-found: ignore

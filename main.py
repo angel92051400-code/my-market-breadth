@@ -271,7 +271,7 @@ def main():
         "taiexBB": {"upper": values(taiex_bma + 2*taiex_bstd, idx),
                     "lower": values(taiex_bma - 2*taiex_bstd, idx)},
         "universes": {}, "us": {},
-        "thresholds": {"hot":70, "veryHot":80, "cold":20, "veryCold":10},
+        "thresholds": {"hot":50, "veryHot":60, "cold":20, "veryCold":10},
         "newHighWindow":20,
         "longWindow":250,
     }
@@ -307,7 +307,7 @@ def main():
     lows = ((px < p20_low) & px.notna()).sum(axis=1).astype(float).where(highlow_ok)
     high_diff = highs - lows
     extreme = breadth["640"]["breadth"]
-    e_hot = extreme >= 70
+    e_hot = extreme >= 50
     e_cold = extreme <= 20
     # Real streaks on last 250 available trading sessions, not number of prior historic occurrences.
     recent_hot, recent_cold = e_hot.tail(250), e_cold.tail(250)
@@ -371,9 +371,9 @@ main{max-width:1480px;margin:0 auto;padding:22px 18px 38px} .header{display:flex
  <div class="controls"><label for="start">顯示區間</label><input type="date" id="start"/><span>—</span><input type="date" id="end"/><button type="button" id="reset">還原</button><button type="button" id="d1m">1 個月</button><button type="button" id="d3m">3 個月</button><button type="button" id="d6m">6 個月</button><button type="button" id="d1y">1 年</button><button type="button" id="dall">全部</button></div>
  <div class="controls"><label for="us-select">美股對照</label><select id="us-select"><option value="none">不顯示</option><option value="S&P 500">S&P 500（報酬%）</option><option value="Nasdaq-100">Nasdaq-100（報酬%）</option></select><label for="primary">台股寬度</label><select id="primary"><option value="640">前 640 大</option><option value="300">前 300 大</option><option value="all">全市場</option></select><label for="taiex-scale">加權指數尺度</label><select id="taiex-scale"><option value="auto" selected>自動縮放</option><option value="30000">30,000 點起</option><option value="full">完整歷史範圍</option></select></div>
 </div>
-<div class="switches"><label><input type="checkbox" id="show300"/> 前 300 大</label><label><input type="checkbox" id="show640" checked/> 前 640 大</label><label><input type="checkbox" id="showall"/> 全市場</label><label><input type="checkbox" id="taiexbb"/> 大盤布林通道</label><label><input type="checkbox" id="breadthbb"/> 市場寬度布林通道</label><label><input type="checkbox" id="heat" checked/> 過熱 70/80%</label><label><input type="checkbox" id="cold" checked/> 過冷 10/20%</label><label><input type="checkbox" id="newbars" checked/> 新高－新低柱狀</label><label><input type="checkbox" id="fib"/> 費波那契回撤線</label><label class="fib-controls" for="fibdir">波段方向 <select id="fibdir"><option value="auto">自動（依高低點先後）</option><option value="up">上漲波段</option><option value="down">下跌波段</option></select></label></div>
+<div class="switches"><label><input type="checkbox" id="show300"/> 前 300 大</label><label><input type="checkbox" id="show640" checked/> 前 640 大</label><label><input type="checkbox" id="showall"/> 全市場</label><label><input type="checkbox" id="taiexbb"/> 大盤布林通道</label><label><input type="checkbox" id="breadthbb"/> 市場寬度布林通道</label><label><input type="checkbox" id="heat" checked/> 過熱 50/60%</label><label><input type="checkbox" id="cold" checked/> 過冷 10/20%</label><label><input type="checkbox" id="newbars" checked/> 新高－新低柱狀</label><label><input type="checkbox" id="fib"/> 費波那契回撤線</label><label class="fib-controls" for="fibdir">波段方向 <select id="fibdir"><option value="auto">自動（依高低點先後）</option><option value="up">上漲波段</option><option value="down">下跌波段</option></select></label></div>
 <div class="chart-wrap" id="chart-wrap"><div id="chart"></div><div id="crosshair" aria-hidden="true"></div></div><div class="hint" id="chart-hint">拖曳圖表可縮放、移動；滑鼠參考線會穿過主圖與兩個獨立副圖；日期切換時三圖同步。 日期軸會略過週末、國定假日及沒有交易的日期；若交易日股價覆蓋率不足 95%，市場寬度會留空而非顯示假的 0%／100%。費波那契以所選日期區間的大盤最高／最低點自動計算，僅是可能價位，不是買賣保證。K 線與市場寬度共用日期軸，左右 Y 軸分別顯示股價點數及市場寬度百分比。加權指數尺度可選自動縮放、30,000 點起或完整歷史範圍；若所選日期的股價低於 30,000 點，固定下限模式將裁切該部分 K 線。美股線為指數累積報酬（非美股市場寬度），使用獨立 Y 軸。</div>
-<div class="panel"><h2>門檻與歷史脈絡 <span class="meta" id="coverage"></span></h2><div class="metrics"><div class="metric"><div class="m-label">距過熱門檻（640 大 ≥70%）</div><div class="m-value" id="hotgap">--</div></div><div class="metric"><div class="m-label">距過冷門檻（640 大 ≤20%）</div><div class="m-value" id="coldgap">--</div></div><div class="metric"><div class="m-label">近 250 交易日過熱次數</div><div class="m-value" id="hotcount">--</div></div><div class="metric"><div class="m-label">近 250 交易日過冷次數</div><div class="m-value" id="coldcount">--</div></div></div>
+<div class="panel"><h2>門檻與歷史脈絡 <span class="meta" id="coverage"></span></h2><div class="metrics"><div class="metric"><div class="m-label">距過熱門檻（640 大 ≥50%）</div><div class="m-value" id="hotgap">--</div></div><div class="metric"><div class="m-label">距過冷門檻（640 大 ≤20%）</div><div class="m-value" id="coldgap">--</div></div><div class="metric"><div class="m-label">近 250 交易日過熱次數</div><div class="m-value" id="hotcount">--</div></div><div class="metric"><div class="m-label">近 250 交易日過冷次數</div><div class="m-value" id="coldcount">--</div></div></div>
 <div class="foot" id="details"></div></div>
 </main><script id="market-data" type="application/json">__DATA__</script>
 <script>
@@ -398,9 +398,9 @@ const highs=val(D.extra.highs),lows=val(D.extra.lows),diff=val(D.extra.highDiff)
 $('cnew').textContent=diff==null?'—':sign(diff,0); $('dnew').textContent='';$('nnew').textContent=`創高 ${fmt(highs,0)} / 創低 ${fmt(lows,0)}；以${D.extra.highUniverse==='all'?'全市場':'前640大'}有效收盤價計算`;
 const hi=val(D.candles.high),lo=val(D.candles.low),cl=val(D.candles.close);
 $('cprice').textContent=fmt(cl,0);$('dprice').textContent=sign(val(D.taiexReturn),2)+'%';$('nprice').textContent=`當日最高 ${fmt(hi,0)}／最低 ${fmt(lo,0)}；非逐筆即時數據`;
-$('asof').textContent='資料日 '+D.snapshotDate;const isHot=v640>=70,isCold=v640<=20;
-$('mood').textContent=v640>=80?'極度過熱':isHot?'過熱':v640<=10?'極度過冷':isCold?'過冷':'中性';$('streak-head').textContent=`連續 ${isHot?D.extra.hotStreak:isCold?D.extra.coldStreak:0} 個交易日（同一狀態）`;
-$('hotgap').textContent=fmt(v640-70,1)+' 個百分點';$('coldgap').textContent=fmt(v640-20,1)+' 個百分點';$('hotcount').textContent=D.extra.hotCount250+' 日';$('coldcount').textContent=D.extra.coldCount250+' 日';
+$('asof').textContent='資料日 '+D.snapshotDate;const isHot=v640>=50,isCold=v640<=20;
+$('mood').textContent=v640>=60?'極度過熱':isHot?'過熱':v640<=10?'極度過冷':isCold?'過冷':'中性';$('streak-head').textContent=`連續 ${isHot?D.extra.hotStreak:isCold?D.extra.coldStreak:0} 個交易日（同一狀態）`;
+$('hotgap').textContent=fmt(v640-50,1)+' 個百分點';$('coldgap').textContent=fmt(v640-20,1)+' 個百分點';$('hotcount').textContent=D.extra.hotCount250+' 日';$('coldcount').textContent=D.extra.coldCount250+' 日';
 $('coverage').textContent=`｜全市場來源：${D.officialSource}`;
 $('details').textContent='寬度＝收盤價同時高於 20 日與 60 日簡單移動平均線的有效股票比率；歷史布林通道為寬度 20 日平均 ±2 倍標準差，大盤布林通道為加權指數收盤價 20 日平均 ±2 倍標準差。新高／新低為當日收盤價突破先前 20 個有效交易日的收盤高／低，不是盤中高低或 52 週新高。紅漲、綠跌。歷史名單採用目前名單回推，並非各歷史日當時的市值前 640 大，存在成分股／存活者偏差。';
 let currentStart=D.dates[Math.max(0,last-99)],currentEnd=D.dates[last];
@@ -537,7 +537,7 @@ async function build(){
  ts.push({type:'bar',name:'大盤日漲跌幅 (%)',x:D.dates,y:D.taiexReturn,xaxis:'x2',yaxis:'y3',marker:{color:D.taiexReturn.map(v=>v==null?'#555':v>=0?C.red:C.green)},showlegend:true});
  if($('newbars').checked)ts.push({type:'bar',name:'20日收盤創高－創低',x:D.dates,y:D.extra.highDiff,xaxis:'x3',yaxis:'y5',opacity:.80,marker:{color:D.extra.highDiff.map(v=>v>=0?'#f3c56a':'#87aaf6')},showlegend:true});
  const shapes=[],annotations=[];
- if($('heat').checked)for(const [level,color,dash] of [[70,'#fb923c','dash'],[80,'#ff626b','solid']])shapes.push({type:'line',xref:'paper',yref:'y2',x0:0,x1:1,y0:level,y1:level,line:{color,width:1.3,dash}});
+ if($('heat').checked)for(const [level,color,dash] of [[50,'#fb923c','dash'],[60,'#ff626b','solid']])shapes.push({type:'line',xref:'paper',yref:'y2',x0:0,x1:1,y0:level,y1:level,line:{color,width:1.3,dash}});
  if($('cold').checked)for(const [level,color,dash] of [[20,'#4ade80','dash'],[10,'#15803d','solid']])shapes.push({type:'line',xref:'paper',yref:'y2',x0:0,x1:1,y0:level,y1:level,line:{color,width:1.3,dash}});
  if($('fib').checked){
   const fib=fibonacci();

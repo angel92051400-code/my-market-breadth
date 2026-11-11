@@ -62,7 +62,8 @@ class PriceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "stock_closes.csv.gz"
             dates = pd.date_range("2026-06-01", periods=120, freq="B")
-            old = pd.DataFrame({"A.TW": [100.0] * 120}, index=dates)
+            names = [f"{i:04d}.TW" for i in range(1000, 1639)]
+            old = pd.DataFrame({x: [100.0] * 120 for x in names}, index=dates)
             _write_cache(path, old)
             requests = []
             def fake_download(symbols, period):
@@ -70,7 +71,7 @@ class PriceTests(unittest.TestCase):
                 subset = dates[-22:] if period == "1mo" else dates
                 return pd.DataFrame({x: [100.0] * len(subset) for x in symbols}, index=subset)
             with patch("market_cache.CLOSE_PATH", path):
-                result = load_stock_closes(["A.TW", "B.TW"], fake_download)
+                result = load_stock_closes(names + ["B.TW"], fake_download)
             self.assertIn((("B.TW",), "2y"), requests)
             self.assertEqual(result["B.TW"].notna().sum(), 120)
 

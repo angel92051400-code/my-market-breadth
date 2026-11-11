@@ -299,8 +299,12 @@ def main():
     px = breadth[all_key]["prices"]
     p20_high = px.shift(1).rolling(20, min_periods=20).max()
     p20_low = px.shift(1).rolling(20, min_periods=20).min()
-    highs = ((px > p20_high) & px.notna()).sum(axis=1)
-    lows = ((px < p20_low) & px.notna()).sum(axis=1)
+    # New-high/new-low has its own 20-session quality check (not the breadth 60MA denominator).
+    highlow_eligible = (px.notna() & p20_high.notna() & p20_low.notna()).sum(axis=1)
+    highlow_minimum = int(np.ceil(px.shape[1] * .95))
+    highlow_ok = highlow_eligible >= highlow_minimum
+    highs = ((px > p20_high) & px.notna()).sum(axis=1).astype(float).where(highlow_ok)
+    lows = ((px < p20_low) & px.notna()).sum(axis=1).astype(float).where(highlow_ok)
     high_diff = highs - lows
     extreme = breadth["640"]["breadth"]
     e_hot = extreme >= 70

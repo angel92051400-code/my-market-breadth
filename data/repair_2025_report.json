@@ -1,0 +1,257 @@
+{
+  "target_start": "2025-08-01",
+  "target_end": "2025-10-29",
+  "target_sessions": 60,
+  "days_repaired": 1,
+  "min_60ma_coverage": 0.7375,
+  "threshold": 0.95,
+  "per_day": [
+    {
+      "date": "2025-08-01",
+      "twse_count": 1048,
+      "tpex_count": 0
+    }
+  ],
+  "still_incomplete": [
+    {
+      "date": "2025-08-01",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-04",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-05",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-06",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-07",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-08",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-11",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-12",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-13",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-14",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-15",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-18",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-19",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-20",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-21",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-22",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-25",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-26",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-27",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-28",
+      "eligible": 472
+    },
+    {
+      "date": "2025-08-29",
+      "eligible": 472
+    },
+    {
+      "date": "2025-09-01",
+      "eligible": 472
+    },
+    {
+      "date": "2025-09-02",
+      "eligible": 472
+    },
+    {
+      "date": "2025-09-03",
+      "eligible": 472
+    },
+    {
+      "date": "2025-09-04",
+      "eligible": 473
+    },
+    {
+      "date": "2025-09-05",
+      "eligible": 473
+    },
+    {
+      "date": "2025-09-08",
+      "eligible": 473
+    },
+    {
+      "date": "2025-09-09",
+      "eligible": 473
+    },
+    {
+      "date": "2025-09-10",
+      "eligible": 473
+    },
+    {
+      "date": "2025-09-11",
+      "eligible": 473
+    },
+    {
+      "date": "2025-09-12",
+      "eligible": 473
+    },
+    {
+      "date": "2025-09-15",
+      "eligible": 473
+    },
+    {
+      "date": "2025-09-16",
+      "eligible": 473
+    },
+    {
+      "date": "2025-09-17",
+      "eligible": 473
+    },
+    {
+      "date": "2025-09-18",
+      "eligible": 473
+    },
+    {
+      "date": "2025-09-19",
+      "eligible": 473
+    },
+    {
+      "date": "2025-09-22",
+      "eligible": 473
+    },
+    {
+      "date": "2025-09-23",
+      "eligible": 473
+    },
+    {
+      "date": "2025-09-24",
+      "eligible": 473
+    },
+    {
+      "date": "2025-09-25",
+      "eligible": 473
+    },
+    {
+      "date": "2025-09-26",
+      "eligible": 473
+    },
+    {
+      "date": "2025-09-30",
+      "eligible": 473
+    },
+    {
+      "date": "2025-10-01",
+      "eligible": 473
+    },
+    {
+      "date": "2025-10-02",
+      "eligible": 473
+    },
+    {
+      "date": "2025-10-03",
+      "eligible": 473
+    },
+    {
+      "date": "2025-10-07",
+      "eligible": 473
+    },
+    {
+      "date": "2025-10-08",
+      "eligible": 473
+    },
+    {
+      "date": "2025-10-09",
+      "eligible": 473
+    },
+    {
+      "date": "2025-10-13",
+      "eligible": 473
+    },
+    {
+      "date": "2025-10-14",
+      "eligible": 473
+    },
+    {
+      "date": "2025-10-15",
+      "eligible": 473
+    },
+    {
+      "date": "2025-10-16",
+      "eligible": 473
+    },
+    {
+      "date": "2025-10-17",
+      "eligible": 473
+    },
+    {
+      "date": "2025-10-20",
+      "eligible": 473
+    },
+    {
+      "date": "2025-10-21",
+      "eligible": 473
+    },
+    {
+      "date": "2025-10-22",
+      "eligible": 473
+    },
+    {
+      "date": "2025-10-23",
+      "eligible": 473
+    },
+    {
+      "date": "2025-10-27",
+      "eligible": 473
+    },
+    {
+      "date": "2025-10-28",
+      "eligible": 473
+    },
+    {
+      "date": "2025-10-29",
+      "eligible": 473
+    }
+  ]
+}

@@ -209,11 +209,14 @@ def main():
     REPORT.parent.mkdir(parents=True, exist_ok=True)
     REPORT.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"檢查結果：最低有效率 {minimum:.1%}；不合格日期 {len(report['still_incomplete'])} 天", flush=True)
-    if report["still_incomplete"]:
-        # Do not save a partial cache or publish fake historical values.
-        raise RuntimeError("官方補價後仍不滿足 95% 的 60MA 有效率；保留舊網站，詳見診斷報告")
+    if not needs_fix.empty and new.notna().sum().sum() == 0:
+        raise RuntimeError("官方補價未取得任何有效價格，不修改歷史快取")
+    # Persist only sourced prices; incomplete breadth remains masked by main.py.
     _write_cache(CLOSE_PATH, merged)
-    print("✅ 2025 年歷史價格已驗證並儲存；可以重新產生網站", flush=True)
+    if report["still_incomplete"]:
+        print("⚠️ 部分日期仍不足 95%；已保存有來源的補價，網站將維持缺值遮罩；下次可續補。", flush=True)
+    else:
+        print("✅ 2025 年歷史價格已通過 95% 的 60MA 驗證並儲存", flush=True)
 
 
 if __name__ == "__main__":

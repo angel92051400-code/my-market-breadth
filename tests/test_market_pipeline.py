@@ -1,11 +1,11 @@
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import pandas as pd
 
-from market_calendar import roc_to_iso, trading_status, is_closed_record
+from market_calendar import roc_to_iso, trading_status, is_closed_record, resolve_target_date
 from market_cache import merge_prices, validate_and_mask_breadth, _write_cache, read_cache
 
 
@@ -32,6 +32,31 @@ class CalendarTests(unittest.TestCase):
         ]:
             with self.subTest(day=day):
                 self.assertEqual(trading_status(day, self.rows)[0], expected)
+
+    def test_scheduled_run_delayed_past_midnight_uses_prior_session(self):
+        from zoneinfo import ZoneInfo
+        taipei = ZoneInfo("Asia/Taipei")
+        self.assertEqual(
+            resolve_target_date(datetime(2026,11,21,0,14,tzinfo=taipei),event_name="schedule"),
+            date(2026,11,20)
+        )
+        self.assertEqual(
+            resolve_target_date(datetime(2026,11,20,17,30,tzinfo=taipei),event_name="schedule"),
+            date(2026,11,20)
+        )
+        self.assertEqual(
+            resolve_target_date(datetime(2026,11,21,0,14,tzinfo=taipei),event_name="workflow_dispatch"),
+            date(2026,11,21)
+        )
+
+    def test_manual_recent_backfill_date_rejects_old_or_future(self):
+        from zoneinfo import ZoneInfo
+        taipei=ZoneInfo("Asia/Taipei")
+        now=datetime(2026,11,21,22,55,tzinfo=taipei)
+        self.assertEqual(resolve_target_date(now,requested_date="2026-11-20"),date(2026,11,20))
+        for wrong in ("2026-11-22","2026-11-12"):
+            with self.assertRaises(ValueError):
+                resolve_target_date(now,requested_date=wrong)
 
     def test_missing_calendar_is_not_assumed_open(self):
         self.assertEqual(trading_status(date(2026, 11, 11), None)[0], "unknown")

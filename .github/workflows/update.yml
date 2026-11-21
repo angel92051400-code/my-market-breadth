@@ -1,6 +1,11 @@
 name: Daily Market Breadth Update
 
 on:
+  # One-time catch-up after this PR merge. Remove once result is verified.
+  push:
+    branches: [main]
+    paths:
+      - market_calendar.py
   schedule:
     # Taipei 15:17; official TWSE calendar handles weekends and national holidays.
     - cron: '17 7 * * *'
@@ -47,7 +52,7 @@ jobs:
       - name: Check TWSE trading calendar
         id: calendar
         env:
-          MARKET_TARGET_DATE: ${{ inputs.target_date || '' }}
+          MARKET_TARGET_DATE: ${{ github.event_name == 'push' && '2026-11-20' || inputs.target_date || '' }}
         run: python market_calendar.py
 
       - name: Install dependencies

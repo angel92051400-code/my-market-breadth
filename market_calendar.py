@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
@@ -55,9 +55,32 @@ def fetch_calendar() -> list[dict]:
     return records
 
 
+def resolve_target_date(now: datetime, *, event_name: str = "",
+                        requested_date: str = "") -> date:
+    """Use the session intended by a delayed scheduled job, not its start day.
+
+    On a scheduled job starting after midnight before 06:00 Asia/Taipei,
+    the target is yesterday: Yahoo's previous exchange session just closed.
+    Manual backfill is explicit, never inferred from a weekend.
+    """
+    today = now.date()
+    if requested_date:
+        candidate = date.fromisoformat(requested_date)
+        if candidate > today or (today - candidate).days > 7:
+            raise ValueError("補價日期只能是今天或前7日內，不能使用未來日期")
+        return candidate
+    if event_name == "schedule" and now.hour < 6:
+        return today - timedelta(days=1)
+    return today
+
+
 def run() -> str:
     now = datetime.now(ZoneInfo("Asia/Taipei"))
-    day = now.date()
+    day = resolve_target_date(
+        now,
+        event_name=os.getenv("GITHUB_EVENT_NAME", ""),
+        requested_date=os.getenv("MARKET_TARGET_DATE", "").strip()
+    )
     try:
         records = fetch_calendar()
         # The OpenAPI sometimes exposes only the latest published year.
@@ -68,7 +91,7 @@ def run() -> str:
     except Exception as exc:
         print(f"TWSE calendar unavailable: {type(exc).__name__}: {exc}", flush=True)
         status, reason = trading_status(day, None)
-    print(f"Taipei {day}: {status} - {reason}", flush=True)
+    print(f"Taipei execution {now.isoformat()}; target market day {day}: {status} - {reason}", flush=True)
 
     output = os.getenv("GITHUB_OUTPUT")
     if output:

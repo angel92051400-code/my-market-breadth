@@ -16,6 +16,11 @@ on:
         type: boolean
         required: true
         default: false
+      target_date:
+        description: '指定補更新的交易日 YYYY-MM-DD（僅限近7天，留白使用目前日期）'
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -41,6 +46,8 @@ jobs:
 
       - name: Check TWSE trading calendar
         id: calendar
+        env:
+          MARKET_TARGET_DATE: ${{ inputs.target_date || '' }}
         run: python market_calendar.py
 
       - name: Install dependencies

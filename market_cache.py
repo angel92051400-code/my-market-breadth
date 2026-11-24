@@ -55,9 +55,58 @@ def _write_cache(path: Path, frame: pd.DataFrame) -> None:
             temporary.unlink()
 
 
-def load_stock_closes(symbols: list[str], downloader, *, full_refresh=False) -> pd.DataFrame:
+def _quote_status(frame: pd.DataFrame, symbols: list[str], target: pd.Timestamp) -> tuple[int, list[str]]:
+    """A column does not imply a valid quotation on the actual target date."""
+    row = (frame.loc[target] if target in frame.index else
+           pd.Series(dtype=float))
+    valid = [symbol for symbol in symbols
+             if symbol in row.index and pd.notna(row[symbol]) and row[symbol] > 0]
+    valid_set = set(valid)
+    return len(valid), [symbol for symbol in symbols if symbol not in valid_set]
+
+
+def _save_quote_diagnostics(target: pd.Timestamp, symbols: list[str],
+                            missing: list[str], top: list[str],
+                            attempts: list[dict], latest_seen: str | None) -> None:
+    """Persist diagnostic evidence even when the dashboard is not published."""
+    import json
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    top_set = set(top)
+    missing_top = [symbol for symbol in missing if symbol in top_set]
+    data = {
+        "target_date": target.strftime("%Y-%m-%d"),
+        "latest_downloaded_date": latest_seen,
+        "total_symbols": len(symbols),
+        "valid": len(symbols)-len(missing),
+        "coverage_pct": round(100*(len(symbols)-len(missing))/len(symbols), 3),
+        "top640_valid": len(top)-len(missing_top),
+        "top640_total": len(top),
+        "missing_count": len(missing),
+        "missing_top_count": len(missing_top),
+        "missing_tickers": missing,
+        "attempts": attempts,
+    }
+    path = CACHE_DIR/"quote_diagnostics.json"
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"行情品質診斷 {path}: {data['valid']}/{len(symbols)} "
+          f"({data['coverage_pct']:.2f}%), "
+          f"前640: {data['top640_valid']}/{len(top)}, "
+          f"缺價 {len(missing)} 檔", flush=True)
+    if missing:
+        print("缺價代號範例：" + ", ".join(missing[:30]), flush=True)
+
+
+def load_stock_closes(symbols: list[str], downloader, *, full_refresh=False,
+                      expected_date: str = "", priority_symbols: list[str] | None = None,
+                      max_retry_symbols: int = 320) -> pd.DataFrame:
+    """Download, verify the intended date and retry only missing target-day closes.
+
+    Never forward-fill, change the date, silently relax coverage requirements or
+    persist unvalidated data. The caller writes caches only after full validation.
+    """
+    import math
     existing = read_cache(CLOSE_PATH)
-    # Newly included tickers need 60+ trading sessions, not just the 1mo incremental window.
+    priority = [s for s in (priority_symbols or []) if s in symbols]
     missing_history = [symbol for symbol in symbols if symbol not in existing.columns]
     if existing.empty or full_refresh:
         print("歷史股價：首次建檔／定期完整校驗，下載 2y", flush=True)
@@ -66,17 +115,77 @@ def load_stock_closes(symbols: list[str], downloader, *, full_refresh=False) -> 
         print("歷史股價：增量更新近 1mo", flush=True)
         fresh = downloader(symbols, period="1mo")
 
+    seen_dates = fresh.index if fresh is not None and not fresh.empty else existing.index
+    latest_seen = str(pd.Timestamp(seen_dates.max()).date()) if len(seen_dates) else None
+    target = (pd.Timestamp(expected_date).normalize()
+              if expected_date else
+              pd.Timestamp(seen_dates.max()).normalize() if len(seen_dates)
+              else None)
+    if target is None:
+        raise RuntimeError("Yahoo沒有提供任何交易日股價，保留舊網站")
+    if target in existing.index and expected_date and target > pd.Timestamp.today().normalize():
+        raise ValueError("預期交易日不能在未來")
+    print(f"股價預定交易日：{target.date()}，下載最新日期：{latest_seen}", flush=True)
+
     merged = merge_prices(existing, fresh)
     if missing_history and not existing.empty and not full_refresh:
         print(f"新上市或新入選成分股 {len(missing_history)} 檔：補抓 2y", flush=True)
         merged = merge_prices(merged, downloader(missing_history, period="2y"))
 
-    merged = merged.reindex(columns=symbols)
+    # Never treat an early quote from the *next* date as the current-day
+    # coverage test. Preserve earlier historical observations.
+    merged = merged.loc[merged.index <= target].reindex(columns=symbols)
     if len(merged) < MIN_HISTORY_ROWS:
         raise RuntimeError(f"股價快取只有 {len(merged)} 個交易日，禁止發布")
-    if merged.notna().sum(axis=1).iloc[-1] < max(300, int(len(symbols) * .90)):
-        raise RuntimeError("最新交易日股價覆蓋率不足 90%，保留舊網站")
-    return merged
+
+    needed = max(300, math.ceil(len(symbols)*.90))
+    top_needed = math.ceil(len(priority)*.95) if priority else 0
+    attempts=[]
+    for retry_round in range(3):
+        count, missing = _quote_status(merged, symbols, target)
+        top_count = len(priority) - len(set(missing).intersection(priority))
+        print(f"交易日 {target.date()}：全市場 {count}/{len(symbols)} "
+              f"({count/len(symbols):.2%})，前640 {top_count}/{len(priority)}",
+              flush=True)
+        if count >= needed and top_count >= top_needed:
+            _save_quote_diagnostics(target, symbols, missing, priority, attempts, latest_seen)
+            return merged
+
+        if retry_round == 2:
+            break
+        # Prioritise the 640 constituents; retry only names with no valid close
+        # on the intended date, even if Yahoo reported columns for those names.
+        missing_set = set(missing)
+        ordered = [s for s in priority if s in missing_set]
+        ordered.extend(s for s in missing if s not in set(ordered))
+        candidates = ordered[:max_retry_symbols]
+        if not candidates:
+            break
+        # If the target date is absent entirely, retry one small batch first.
+        # Repeating thousands of tickers cannot manufacture a closed session.
+        if count == 0:
+            candidates = candidates[:80]
+        print(f"缺價補抓第 {retry_round+1} 輪：{len(candidates)} 檔，"
+              f"原缺漏 {len(missing)} 檔，僅重試預定交易日缺價者", flush=True)
+        attempts.append({"round":retry_round+1, "requested":len(candidates),
+                         "before_valid":count})
+        retry = downloader(candidates, period="1mo")
+        if retry is not None and not retry.empty:
+            merged = merge_prices(merged, retry.loc[retry.index <= target])
+            merged = merged.reindex(columns=symbols)
+
+    count, missing = _quote_status(merged, symbols, target)
+    top_count = len(priority)-len(set(missing).intersection(priority))
+    _save_quote_diagnostics(target, symbols, missing, priority, attempts, latest_seen)
+    reasons = []
+    if count < needed:
+        reasons.append(f"全市場 {count}/{len(symbols)} < {needed} (90%)")
+    if priority and top_count < top_needed:
+        reasons.append(f"前640 {top_count}/{len(priority)} < {top_needed} (95%)")
+    raise RuntimeError(
+        f"交易日 {target.date()} 報價不足：{'; '.join(reasons)}。"
+        "已針對缺價股票重試；保留舊網站，詳見 data/quote_diagnostics.json"
+    )
 
 
 def load_taiex(fetcher, *, full_refresh=False) -> pd.DataFrame:

@@ -62,13 +62,15 @@ jobs:
         if: steps.calendar.outputs.status != 'closed'
         env:
           EVENT_NAME: ${{ github.event_name }}
+          TARGET_DAY: ${{ steps.calendar.outputs.date }}
           MANUAL_TICKERS: ${{ inputs.update_tickers }}
           MANUAL_FULL: ${{ inputs.full_refresh }}
         shell: bash
         run: |
           UPDATE_TICKERS=false
           FULL_REFRESH=false
-          DOW=$(TZ=Asia/Taipei date +%u)
+          # Use intended market date, not the delayed runner start day.
+          DOW=$(date -u -d "$TARGET_DAY" +%u)
           if [[ "$EVENT_NAME" == "schedule" && "$DOW" == "1" ]]; then
             UPDATE_TICKERS=true
             FULL_REFRESH=true
@@ -137,6 +139,14 @@ jobs:
             git pull --rebase origin main
             git push
           fi
+
+      - name: Upload quote quality diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-quote-diagnostics
+          path: data/quote_diagnostics.json
+          if-no-files-found: ignore
 
       - name: Execution Summary
         if: always()

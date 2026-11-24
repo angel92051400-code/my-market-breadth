@@ -211,8 +211,18 @@ def main():
     top = load_top()
     all_request, official, source_label = get_universe(top)
     full_refresh = os.getenv("MARKET_FULL_REFRESH", "0") == "1"
-    close = load_stock_closes(all_request, download_prices, full_refresh=full_refresh)
+    expected = os.getenv("EXPECT_TRADE_DATE", "").strip()
+    # Check the benchmark date before spending time downloading ~2000 stocks.
     taiex = load_taiex(lambda period: extract_ohlc("^TWII", period=period), full_refresh=full_refresh)
+    if expected and pd.Timestamp(expected) not in taiex.index:
+        raise RuntimeError(
+            f"加權指數尚無預定交易日 {expected} 的收盤行情，"
+            "不下載全市場股票，也不發布舊日期。"
+        )
+    close = load_stock_closes(
+        all_request, download_prices, full_refresh=full_refresh,
+        expected_date=expected, priority_symbols=top
+    )
     us = {}
     for symbol, label in (("^GSPC", "S&P 500"), ("^NDX", "Nasdaq-100")):
         try:

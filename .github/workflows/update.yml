@@ -65,6 +65,7 @@ jobs:
         if: steps.calendar.outputs.status != 'closed'
         env:
           EVENT_NAME: ${{ github.event_name }}
+          SCHEDULE_CRON: ${{ github.event.schedule }}
           TARGET_DAY: ${{ steps.calendar.outputs.date }}
           MANUAL_TICKERS: ${{ inputs.update_tickers }}
           MANUAL_FULL: ${{ inputs.full_refresh }}
@@ -74,7 +75,7 @@ jobs:
           FULL_REFRESH=false
           # Use intended market date, not the delayed runner start day.
           DOW=$(date -u -d "$TARGET_DAY" +%u)
-          if [[ "$EVENT_NAME" == "schedule" && "$DOW" == "1" ]]; then
+          if [[ "$EVENT_NAME" == "schedule" && "$DOW" == "1" && "$SCHEDULE_CRON" == "17 7 * * *" ]]; then
             UPDATE_TICKERS=true
             FULL_REFRESH=true
           fi

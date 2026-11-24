@@ -4,6 +4,9 @@ on:
   schedule:
     # Taipei 15:17; official TWSE calendar handles weekends and national holidays.
     - cron: '17 7 * * *'
+    # Retry after Yahoo's Taiwan end-of-day quotes have had time to settle.
+    - cron: '17 12 * * *'  # Taipei 20:17
+    - cron: '17 15 * * *'  # Taipei 23:17
   workflow_dispatch:
     inputs:
       update_tickers:

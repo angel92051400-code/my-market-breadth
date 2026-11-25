@@ -1,14 +1,14 @@
 {
-  "checked_at_utc": "2026-11-25T21:53:04.136913+00:00",
-  "target_date": "2026-11-25",
+  "checked_at_utc": "2026-11-25T23:39:58.347589+00:00",
+  "target_date": "2026-11-26",
   "event": "schedule",
   "steps": {
     "CALENDAR": "unknown",
     "TICKERS": "skipped",
     "VALIDATE": "success",
-    "DASHBOARD": "success",
-    "ARCHIVE": "success",
-    "PUBLISH": "success"
+    "DASHBOARD": "failure",
+    "ARCHIVE": "skipped",
+    "PUBLISH": "skipped"
   },
-  "actions_run_url": "https://github.com/angel92051400-code/my-market-breadth/actions/runs/45707234030"
+  "actions_run_url": "https://github.com/angel92051400-code/my-market-breadth/actions/runs/45722883815"
 }

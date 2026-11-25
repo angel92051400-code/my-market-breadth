@@ -195,6 +195,14 @@ jobs:
           git pull --rebase origin main
           git push
 
+      - name: Upload run diagnostic snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-run-status
+          path: data/update_status.json
+          if-no-files-found: ignore
+
       - name: Execution Summary
         if: always()
         env:

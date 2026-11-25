@@ -1,6 +1,11 @@
 name: Daily Market Breadth Update
 
 on:
+  # One-shot verification whenever this workflow file is changed; no push loop.
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/update.yml'
   schedule:
     # Taipei 15:17; official TWSE calendar handles weekends and national holidays.
     - cron: '17 7 * * *'
@@ -151,6 +156,44 @@ jobs:
           name: market-quote-diagnostics
           path: data/quote_diagnostics.json
           if-no-files-found: ignore
+
+      - name: Persist latest run outcome for troubleshooting
+        if: always()
+        shell: bash
+        env:
+          CALENDAR: ${{ steps.calendar.outputs.status }}
+          TARGET_DAY: ${{ steps.calendar.outputs.date }}
+          VALIDATE: ${{ steps.validate.outcome }}
+          DASHBOARD: ${{ steps.dashboard.outcome }}
+          ARCHIVE: ${{ steps.archive.outcome }}
+          PUBLISH: ${{ steps.publish.outcome }}
+          TICKERS: ${{ steps.tickers.outcome }}
+          GITHUB_EVENT: ${{ github.event_name }}
+          ACTIONS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          from pathlib import Path
+          status = {
+              "checked_at_utc": datetime.now(timezone.utc).isoformat(),
+              "target_date": os.getenv("TARGET_DAY") or None,
+              "event": os.getenv("GITHUB_EVENT"),
+              "steps": {name: os.getenv(name) or "not_run" for name in
+                        ("CALENDAR", "TICKERS", "VALIDATE", "DASHBOARD", "ARCHIVE", "PUBLISH")},
+              "actions_run_url": os.getenv("ACTIONS_URL"),
+          }
+          path = Path("data/update_status.json")
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(json.dumps(status, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+          print(json.dumps(status, ensure_ascii=False))
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/update_status.json
+          git commit -m "Record last market update job outcome" || exit 0
+          git pull --rebase origin main
+          git push
 
       - name: Execution Summary
         if: always()
